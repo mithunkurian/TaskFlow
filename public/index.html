@@ -73,6 +73,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .cat-group:hover .cat-group-drag{opacity:.5;}
 .cat-group-drag:hover{opacity:1!important;}
 .cat-group-name{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.2px;font-family:'IBM Plex Sans',sans-serif;flex:1;}
+.cat-group-header{cursor:pointer;}
+.cat-group-header:hover .cat-group-name{color:var(--text);}
+.cat-collapse-arrow{font-size:9px;color:var(--dim);transition:transform .2s;display:inline-block;margin-left:2px;line-height:1;}
+.cat-group.cat-collapsed .cat-collapse-arrow{transform:rotate(-90deg);}
+.cat-group-tags.cat-collapsed{display:none;}
 .filter-tag-wrap{display:inline-flex;align-items:center;margin:1px 2px;position:relative;}
 .filter-tag-drag{font-size:10px;color:var(--dim);cursor:grab;opacity:0;padding:1px 2px;line-height:1;user-select:none;transition:opacity .15s;}
 .cat-group:hover .filter-tag-drag{opacity:.4;}
@@ -856,7 +861,7 @@ function getTagColor(cat,val){
   };
 }
 const DEFAULT_CATS=['Project','Priority','Bucket','Status'];
-let state={tasks:[],categories:[...DEFAULT_CATS],tagColors:{},tagColorCounter:0,filters:{},definedTags:{},activeTaskId:null,collapsed:{},leftOpen:true,detailOpen:true};
+let state={tasks:[],categories:[...DEFAULT_CATS],tagColors:{},tagColorCounter:0,filters:{},definedTags:{},activeTaskId:null,collapsed:{},collapsedCats:{},leftOpen:true,detailOpen:true};
 let currentView='active';
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
@@ -866,12 +871,12 @@ function now(){return Date.now();}
 async function fbSave(){
   if(usingLocal||!db){lsSave();return;}
   try{
-    await setDoc(doc(db,'taskflow_v2','appstate'),{tasks:state.tasks,categories:state.categories,tagColors:state.tagColors,tagColorCounter:state.tagColorCounter,collapsed:state.collapsed,definedTags:state.definedTags,updatedAt:now()});
+    await setDoc(doc(db,'taskflow_v2','appstate'),{tasks:state.tasks,categories:state.categories,tagColors:state.tagColors,tagColorCounter:state.tagColorCounter,collapsed:state.collapsed,collapsedCats:state.collapsedCats,definedTags:state.definedTags,updatedAt:now()});
     lsSave();
   }catch(e){console.error('fbSave',e);lsSave();}
 }
 function save(){fbSave();}
-function lsSave(){try{localStorage.setItem('tf2_data',JSON.stringify({tasks:state.tasks,categories:state.categories,tagColors:state.tagColors,tagColorCounter:state.tagColorCounter,collapsed:state.collapsed,definedTags:state.definedTags}));}catch(e){}}
+function lsSave(){try{localStorage.setItem('tf2_data',JSON.stringify({tasks:state.tasks,categories:state.categories,tagColors:state.tagColors,tagColorCounter:state.tagColorCounter,collapsed:state.collapsed,collapsedCats:state.collapsedCats,definedTags:state.definedTags}));}catch(e){}}
 function lsLoad(){
   try{
     const d=JSON.parse(localStorage.getItem('tf2_data')||'{}');
@@ -880,6 +885,7 @@ function lsLoad(){
     if(d.tagColors) state.tagColors=d.tagColors;
     if(d.tagColorCounter) state.tagColorCounter=d.tagColorCounter;
     if(d.collapsed) state.collapsed=d.collapsed;
+    if(d.collapsedCats) state.collapsedCats=d.collapsedCats;
     if(d.definedTags) state.definedTags=d.definedTags;
     migrateTags();
   }catch(e){}
@@ -902,6 +908,7 @@ function applyRemoteData(data){
   if(data.tagColors) state.tagColors=data.tagColors;
   if(data.tagColorCounter!==undefined) state.tagColorCounter=data.tagColorCounter;
   if(data.collapsed) state.collapsed=data.collapsed;
+  if(data.collapsedCats) state.collapsedCats=data.collapsedCats;
   if(data.definedTags) state.definedTags=data.definedTags;
   migrateTags();
 }
@@ -1045,17 +1052,19 @@ function renderFilters(){
   state.categories.forEach((cat,ci)=>{
     const vals=getAllTagValues(cat);if(!vals.length)return;
     const activeSet=state.filters[cat]||new Set();
-    html+=`<div class="cat-group" data-cat="${esc(cat)}"
+    const isCatCollapsed=!!state.collapsedCats[cat];
+    html+=`<div class="cat-group${isCatCollapsed?' cat-collapsed':''}" data-cat="${esc(cat)}"
       draggable="true"
       ondragstart="catDragStart(event,'${esc(cat)}')"
       ondragover="catDragOver(event,'${esc(cat)}')"
       ondragleave="catDragLeave(event,'${esc(cat)}')"
       ondrop="catDrop(event,'${esc(cat)}')">
-      <div class="cat-group-header">
-        <span class="cat-group-drag" title="Drag to reorder">⠿</span>
+      <div class="cat-group-header" onclick="toggleCatCollapse('${esc(cat)}')">
+        <span class="cat-group-drag" title="Drag to reorder" onclick="event.stopPropagation()">⠿</span>
         <span class="cat-group-name">${esc(cat)}</span>
+        <span class="cat-collapse-arrow">▾</span>
       </div>
-      <div>`;
+      <div class="cat-group-tags${isCatCollapsed?' cat-collapsed':''}">`;
     vals.forEach((val,vi)=>{
       const c=getTagColor(cat,val),active=activeSet.has(val);
       html+=`<span class="filter-tag-wrap" data-cat="${esc(cat)}" data-val="${esc(val)}"
@@ -1935,6 +1944,12 @@ function closeTagPopup(){document.getElementById('tag-popup').style.display='non
 document.addEventListener('click',e=>{const p=document.getElementById('tag-popup');if(p&&p.style.display!=='none'&&!p.contains(e.target))closeTagPopup();});
 
 // ── CATEGORY & TAG REORDER IN LEFT PANEL ─────────────────────────
+window.toggleCatCollapse=function(cat){
+  state.collapsedCats[cat]=!state.collapsedCats[cat];
+  save();
+  renderFilters();
+};
+
 let catDragName=null, tagDragCat=null, tagDragVal=null;
 
 window.catDragStart=function(e,cat){
