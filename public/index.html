@@ -243,7 +243,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 
 /* DETAIL PANEL — resizable */
 #detail{
-  width:380px;min-width:260px;max-width:720px;
+  width:380px;min-width:260px;max-width:calc(100vw - 440px);
   background:var(--surface);border-left:1px solid var(--border);
   display:flex;flex-direction:row;overflow:hidden;
   position:relative;flex-shrink:0;
@@ -2201,7 +2201,8 @@ window.toggleDetail=function(){
   document.addEventListener('mousemove',e=>{
     if(!dragging)return;
     const delta=startX-e.clientX; // dragging left = wider
-    const newW=Math.min(720,Math.max(260,startW+delta));
+    const maxW=window.innerWidth-440; // leave ≥200px for main + 240px for left panel
+    const newW=Math.min(maxW,Math.max(260,startW+delta));
     panel.style.width=newW+'px';
   });
   document.addEventListener('mouseup',()=>{
