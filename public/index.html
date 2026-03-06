@@ -951,7 +951,9 @@ function getAllDescendants(id){const r=[];function walk(pid){getChildren(pid).fo
 function addTask(text){
   const inp=document.getElementById('task-inp');
   const t=(text||inp?.value||'').trim();if(!t)return;
-  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),order:state.tasks.filter(x=>!x.parentId).length};
+  // Shift all existing root tasks down so new task lands at top (order 0)
+  state.tasks.filter(x=>!x.parentId&&!x.trashed).forEach(x=>x.order=(x.order||0)+1);
+  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),order:0};
   state.tasks.push(task);if(inp)inp.value='';
   save();render();selectTask(task.id);
 }
@@ -1173,7 +1175,7 @@ function renderTaskNode(task){
         <div class="chk${chkExtra}" onclick="event.stopPropagation();toggleDone('${task.id}')" title="${hasChildren&&!allDone?'Complete all subtasks first':task.done?'Mark as active':'Mark complete'}">${task.done?'✓':''}</div>
         <div class="task-content">
           <div class="task-title-row">
-            <span class="task-name${task.done?' done':''}" onclick="event.stopPropagation();startInlineEditTitle('${task.id}')" title="Click to edit">${esc(task.text)}</span>
+            <span class="task-name${task.done?' done':''}">${esc(task.text)}</span>
           </div>
           <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
         </div>
@@ -2064,9 +2066,17 @@ window.tagDrop=function(e,targetCat,targetVal){
   save();render();
 };
 let dragId=null,dragOverId=null;
-window.onDragStart=function(e,id){dragId=id;e.dataTransfer.effectAllowed='move';setTimeout(()=>{const el=document.querySelector(`.task-item[data-id="${id}"]`);if(el)el.classList.add('dragging');},0);};
+window.onDragStart=function(e,id){
+  const t=getTask(id);
+  if(t&&t.done){e.preventDefault();return;} // done tasks are not reorderable
+  dragId=id;e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>{const el=document.querySelector(`.task-item[data-id="${id}"]`);if(el)el.classList.add('dragging');},0);
+};
 window.onDragOver=function(e,id){
-  if(!dragId||dragId===id)return;e.preventDefault();
+  if(!dragId||dragId===id)return;
+  const target=getTask(id);
+  if(target&&target.done)return; // can't drop onto done section
+  e.preventDefault();
   const el=document.querySelector(`.task-item[data-id="${id}"]`);if(!el)return;
   document.querySelectorAll('.task-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-indent'));
   el.classList.add('drag-over-top');
@@ -2077,10 +2087,12 @@ window.onDragLeave=function(e,id){const el=document.querySelector(`.task-item[da
 window.onDrop=function(e,id){
   e.preventDefault();if(!dragId||!dragOverId)return;
   const target=getTask(id),dragged=getTask(dragId);
-  if(dragged&&target){
-    // Only reorder within the same level
+  if(dragged&&target&&!target.done){
     dragged.parentId=target.parentId;
-    const siblings=state.tasks.filter(t=>t.parentId===target.parentId&&!t.trashed&&t.id!==dragId);
+    // Sort siblings by current order (exclude dragged and done tasks) before splicing
+    const siblings=state.tasks
+      .filter(t=>t.parentId===target.parentId&&!t.trashed&&!t.done&&t.id!==dragId)
+      .sort((a,b)=>(a.order||0)-(b.order||0));
     const idx=siblings.findIndex(t=>t.id===id);
     if(idx!==-1){siblings.splice(idx,0,dragged);siblings.forEach((t,i)=>t.order=i);}
     save();render();
