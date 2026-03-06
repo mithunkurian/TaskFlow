@@ -173,7 +173,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 
 /* line 1 — title */
 .task-title-row{display:flex;align-items:center;gap:0;}
-.task-age-col{display:flex;align-items:center;justify-content:flex-end;width:58px;min-width:58px;padding:0 10px 0 4px;flex-shrink:0;}
 .task-name{
   font-size:14px;font-weight:400;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
@@ -225,14 +224,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 }
 .stale-dot.stale-warn{background:#c8973a;}  /* 7–13 days — amber  */
 .stale-dot.stale-crit{background:#d45f5f;}  /* 14+ days  — red    */
-.stale-age{
-  font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;
-  padding:1px 6px;border-radius:4px;border:1px solid;line-height:1.6;
-  color:var(--dim);border-color:var(--border2);background:transparent;
-  flex-shrink:0;
-}
-.stale-age.stale-warn{color:#c8973a;border-color:rgba(200,151,58,.35);background:rgba(200,151,58,.08);}
-.stale-age.stale-crit{color:#d45f5f;border-color:rgba(212,95,95,.35);background:rgba(212,95,95,.08);}
 /* dim the left border of stale tasks when not selected */
 .task-item:not(.active).stale-warn{border-left-color:rgba(200,151,58,.45)!important;}
 .task-item:not(.active).stale-crit{border-left-color:rgba(212,95,95,.6)!important;}
@@ -1102,7 +1093,15 @@ function taskMatchesFilters(task){
   return true;
 }
 function isFilterActive(){return Object.keys(state.filters).length>0;}
-function shouldShowTask(t){if(taskMatchesFilters(t))return true;return getAllDescendants(t.id).some(d=>taskMatchesFilters(d));}
+function shouldShowTask(t){
+  if(taskMatchesFilters(t))return true;
+  // If an __untagged__ filter is active and this task IS tagged in that category,
+  // never surface it via descendant matching — it explicitly contradicts the filter.
+  for(const[cat,vals]of Object.entries(state.filters)){
+    if(vals&&vals.has('__untagged__')&&(t.tags[cat]||[]).length>0)return false;
+  }
+  return getAllDescendants(t.id).some(d=>taskMatchesFilters(d));
+}
 
 // ── UTILS ────────────────────────────────────────────────────────
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1219,8 +1218,6 @@ function renderTaskNode(task){
   const stale=getStaleness(task);
   const staleClass=stale?' stale-'+stale:'';
   const staleDot=stale?`<div class="stale-dot stale-${stale}" title="No activity for ${staleAgeLabel(task)}"></div>`:'';
-  const ageLabel=staleAgeLabel(task);
-  const staleChip=`<span class="stale-age${stale?' stale-'+stale:''}" title="Last updated ${ageLabel}${stale?' ago — open the task to dismiss':' ago'}">${ageLabel}</span>`;
   return`<div class="task-row" data-id="${task.id}">
     <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}${staleClass}"
       data-id="${task.id}" draggable="true"
@@ -1238,7 +1235,6 @@ function renderTaskNode(task){
           <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
         </div>
       </div>
-      <div class="task-age-col">${staleChip}</div>
       <div class="task-right">
         <button class="task-action del" title="Move to Trash" onclick="event.stopPropagation();trashTask('${task.id}')">🗑</button>
       </div>
