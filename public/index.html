@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.32 | deploy -->
+<!-- TaskFlow v1.33 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -719,7 +719,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.32</div>
+      <div class="app-version">v1.33</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -1030,7 +1030,10 @@ function taskMatchesFilters(task){
   for(const[cat,vals]of Object.entries(state.filters)){
     if(!vals||vals.size===0)continue;
     const tv=task.tags[cat]||[];let m=false;
-    for(const v of vals){if(tv.includes(v)){m=true;break;}}
+    for(const v of vals){
+      if(v==='__untagged__'){if(tv.length===0){m=true;break;}}
+      else if(tv.includes(v)){m=true;break;}
+    }
     if(!m)return false;
   }
   return true;
@@ -1053,7 +1056,7 @@ function renderFilters(){
   const area=document.getElementById('filter-cats');
   let html='';
   state.categories.forEach((cat,ci)=>{
-    const vals=getAllTagValues(cat);if(!vals.length)return;
+    const vals=getAllTagValues(cat);
     const activeSet=state.filters[cat]||new Set();
     const isCatCollapsed=!!state.collapsedCats[cat];
     html+=`<div class="cat-group${isCatCollapsed?' cat-collapsed':''}" data-cat="${esc(cat)}"
@@ -1078,6 +1081,8 @@ function renderFilters(){
         ondrop="tagDrop(event,'${esc(cat)}','${esc(val)}')">
         <span class="filter-tag-drag" title="Drag to reorder">⠿</span><button class="filter-tag${active?' active':''}" style="border-left-color:${c.accent};" onclick="toggleFilter('${esc(cat)}','${esc(val)}')">${esc(val)}</button></span>`;
     });
+    const untaggedActive=activeSet.has('__untagged__');
+    html+=`<button class="filter-tag${untaggedActive?' active':''}" style="border-left-color:var(--dim);font-style:italic;opacity:0.8;" onclick="toggleFilter('${esc(cat)}','__untagged__')">Untagged</button>`;
     html+=`</div></div>`;
   });
   if(!html)html=`<div style="font-size:10px;color:var(--dim);padding:6px 0;">Add tags to tasks to filter</div>`;
@@ -1088,7 +1093,7 @@ function renderFilters(){
     let chips='<span style="font-size:9px;letter-spacing:2px;margin-right:4px;color:var(--muted);">FILTERING:</span>';
     for(const[cat,vals]of Object.entries(state.filters))
       for(const v of vals)
-        chips+=`<span class="active-filter-chip">${esc(cat)}: ${esc(v)} <button onclick="toggleFilter('${esc(cat)}','${esc(v)}')">×</button></span>`;
+        chips+=`<span class="active-filter-chip">${esc(cat)}: ${v==='__untagged__'?'Untagged':esc(v)} <button onclick="toggleFilter('${esc(cat)}','${esc(v)}')">×</button></span>`;
     bar.innerHTML=chips;
   }else bar.classList.remove('show');
   const active=state.tasks.filter(t=>!t.archived&&!t.trashed);
