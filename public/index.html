@@ -1102,7 +1102,15 @@ function taskMatchesFilters(task){
   return true;
 }
 function isFilterActive(){return Object.keys(state.filters).length>0;}
-function shouldShowTask(t){if(taskMatchesFilters(t))return true;return getAllDescendants(t.id).some(d=>taskMatchesFilters(d));}
+function shouldShowTask(t){
+  if(taskMatchesFilters(t))return true;
+  // If an __untagged__ filter is active and this task IS tagged in that category,
+  // never surface it via descendant matching — it explicitly contradicts the filter.
+  for(const[cat,vals]of Object.entries(state.filters)){
+    if(vals&&vals.has('__untagged__')&&(t.tags[cat]||[]).length>0)return false;
+  }
+  return getAllDescendants(t.id).some(d=>taskMatchesFilters(d));
+}
 
 // ── UTILS ────────────────────────────────────────────────────────
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
