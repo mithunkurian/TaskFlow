@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.34 | deploy -->
+<!-- TaskFlow v1.35 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -216,6 +216,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .subtask-count{
   font-size:9px;color:var(--dim);font-family:'IBM Plex Mono',monospace;white-space:nowrap;
 }
+
+/* ── STALENESS INDICATOR ── */
+.stale-dot{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;
+  margin-right:2px;align-self:center;transition:background .3s;
+}
+.stale-dot.stale-warn{background:#c8973a;}  /* 7–13 days — amber  */
+.stale-dot.stale-crit{background:#d45f5f;}  /* 14+ days  — red    */
+.stale-age{
+  font-size:9px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;
+  padding:1px 6px;border-radius:4px;border:1px solid;line-height:1.6;
+}
+.stale-age.stale-warn{color:#c8973a;border-color:rgba(200,151,58,.35);background:rgba(200,151,58,.08);}
+.stale-age.stale-crit{color:#d45f5f;border-color:rgba(212,95,95,.35);background:rgba(212,95,95,.08);}
+/* dim the left border of stale tasks when not selected */
+.task-item:not(.active).stale-warn{border-left-color:rgba(200,151,58,.45)!important;}
+.task-item:not(.active).stale-crit{border-left-color:rgba(212,95,95,.6)!important;}
 
 .task-right{display:flex;align-items:center;padding:0 4px;flex-shrink:0;}
 .task-action{
@@ -723,7 +740,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.34</div>
+      <div class="app-version">v1.35</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -953,7 +970,7 @@ function addTask(text){
   const t=(text||inp?.value||'').trim();if(!t)return;
   // Shift all existing root tasks down so new task lands at top (order 0)
   state.tasks.filter(x=>!x.parentId&&!x.trashed).forEach(x=>x.order=(x.order||0)+1);
-  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),order:0};
+  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),updatedAt:now(),order:0};
   state.tasks.push(task);if(inp)inp.value='';
   save();render();selectTask(task.id);
 }
@@ -961,6 +978,8 @@ window.addTask=addTask;
 
 function updateTask(id,data){
   const t=getTask(id);if(!t)return;
+  // Stamp updatedAt on every meaningful change (drives staleness indicator)
+  if(!data.hasOwnProperty('updatedAt')) data.updatedAt=now();
   Object.assign(t,data);save();render();
   if(state.activeTaskId===id)renderDetail();
 }
@@ -1142,6 +1161,29 @@ function renderFilters(){
   if(btr){btr.textContent=trashed.length;btr.className='archive-badge-count'+(trashed.length?' has-items':'');}
 }
 
+// ── STALENESS ────────────────────────────────────────────────────
+const STALE_WARN_MS = 7  * 24 * 60 * 60 * 1000; // 7 days
+const STALE_CRIT_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+
+function getStaleness(task){
+  // Done/archived/trashed tasks are never flagged
+  if(task.done||task.archived||task.trashed) return null;
+  const ref = task.updatedAt || task.createdAt || 0;
+  const age = Date.now() - ref;
+  if(age >= STALE_CRIT_MS) return 'crit';
+  if(age >= STALE_WARN_MS) return 'warn';
+  return null;
+}
+
+function staleAgeLabel(task){
+  const ref = task.updatedAt || task.createdAt || 0;
+  const days = Math.floor((Date.now() - ref) / 86400000);
+  if(days < 7)  return '';
+  if(days < 30) return days+'d';
+  if(days < 365) return Math.floor(days/30)+'mo';
+  return Math.floor(days/365)+'y';
+}
+
 // ── RENDER TASKS ─────────────────────────────────────────────────
 function renderTagsHtml(task){
   let html='';
@@ -1162,22 +1204,27 @@ function renderTaskNode(task){
   if(isFilterActive()&&!shouldShowTask(task))return'';
   const doneChildren=children.filter(c=>c.done||c.archived).length;
   const allDone=hasChildren&&doneChildren===children.length;
-  // Checkbox class: partial (some done) or normal
   const chkExtra=task.done?' on':hasChildren&&!allDone?' chk-partial':'';
+  // Staleness
+  const stale=getStaleness(task);
+  const staleClass=stale?' stale-'+stale:'';
+  const staleDot=stale?`<div class="stale-dot stale-${stale}" title="No activity for ${staleAgeLabel(task)}"></div>`:'';
+  const staleChip=stale?`<span class="stale-age stale-${stale}" title="Last touched ${staleAgeLabel(task)} ago — open the task to dismiss">${staleAgeLabel(task)}</span>`:'';
   return`<div class="task-row" data-id="${task.id}">
-    <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}"
+    <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}${staleClass}"
       data-id="${task.id}" draggable="true"
       ondragstart="onDragStart(event,'${task.id}')" ondragover="onDragOver(event,'${task.id}')"
       ondragleave="onDragLeave(event,'${task.id}')" ondrop="onDrop(event,'${task.id}')"
       ondragend="onDragEnd(event)" onclick="selectTask('${task.id}')">
       <div class="task-left">
+        ${staleDot}
         <div class="drag-handle"><span></span><span></span><span></span></div>
         <div class="chk${chkExtra}" onclick="event.stopPropagation();toggleDone('${task.id}')" title="${hasChildren&&!allDone?'Complete all subtasks first':task.done?'Mark as active':'Mark complete'}">${task.done?'✓':''}</div>
         <div class="task-content">
           <div class="task-title-row">
             <span class="task-name${task.done?' done':''}">${esc(task.text)}</span>
           </div>
-          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
+          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}${staleChip}</div>
         </div>
       </div>
       <div class="task-right">
@@ -1207,6 +1254,9 @@ window.selectTask=function(id){
     return;
   }
   state.activeTaskId=id;
+  // Opening a task counts as touching it — clears the staleness indicator
+  const touched=getTask(id);
+  if(touched&&getStaleness(touched)){touched.updatedAt=now();save();}
   document.querySelectorAll('.task-item').forEach(el=>el.classList.remove('active'));
   const el=document.querySelector(`.task-item[data-id="${id}"]`);
   if(el){ el.classList.add('active'); el.scrollIntoView({block:'nearest',behavior:'smooth'}); }
@@ -1844,8 +1894,10 @@ window.rteCmd=function(cmd,val){document.execCommand(cmd,false,val||null);docume
 window.addSubtaskDirect=function(parentId){
   const inp=document.getElementById('sub-add-'+parentId);if(!inp)return;
   const text=inp.value.trim();if(!text)return;
-  const task={id:uid(),text,parentId,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),order:getChildren(parentId).length};
+  const task={id:uid(),text,parentId,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),updatedAt:now(),order:getChildren(parentId).length};
   state.tasks.push(task);inp.value='';
+  // Adding a subtask also touches the parent
+  const parent=getTask(parentId);if(parent)parent.updatedAt=now();
   save();render();renderDetail();
   setTimeout(()=>{const i=document.getElementById('sub-add-'+parentId);if(i)i.focus();},50);
 };
@@ -1900,7 +1952,7 @@ window.addComment=function(tid){
   const text=inp.value.trim();if(!text)return;
   const t=getTask(tid);if(!t)return;
   const c={id:uid(),text,author:'You',createdAt:now(),editedAt:null};
-  updateTask(tid,{comments:[c,...(t.comments||[])]});
+  updateTask(tid,{comments:[c,...(t.comments||[])],updatedAt:now()});
   inp.value='';
 };
 window.clearCommentInp=function(tid){const inp=document.getElementById('comment-inp-'+tid);if(inp)inp.value='';};
