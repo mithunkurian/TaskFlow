@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.33 | deploy -->
+<!-- TaskFlow v1.34 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -163,6 +163,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 }
 .chk:hover{border-color:var(--accent);}
 .chk.on{background:var(--accent);border-color:var(--accent);color:var(--accent-text);}
+.chk.chk-partial{border-color:var(--accent);border-style:dashed;opacity:.75;}
+.chk.chk-blocked{border-color:var(--accent2)!important;animation:chk-shake .35s ease;}
+@keyframes chk-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.done-section-label{font-size:9px;letter-spacing:2px;color:var(--dim);padding:10px 14px 4px;font-family:'IBM Plex Mono',monospace;border-top:1px solid var(--border);margin-top:4px;}
 
 /* two-line content */
 .task-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;}
@@ -719,7 +723,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.33</div>
+      <div class="app-version">v1.34</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -970,7 +974,17 @@ function trashTask(id){
 }
 window.trashTask=trashTask;
 
-function archiveTask(id){updateTask(id,{done:true,archived:true,trashed:false,completedAt:now()});}
+function archiveTask(id){
+  const children=getChildren(id).filter(c=>!c.trashed);
+  const undone=children.filter(c=>!c.done&&!c.archived);
+  if(undone.length>0){
+    // Flash the Mark Complete button area
+    const btn=document.querySelector(`#detail-inner .btn.accent`);
+    if(btn){btn.style.outline='2px solid var(--accent2)';setTimeout(()=>btn.style.outline='',500);}
+    return;
+  }
+  updateTask(id,{done:true,archived:true,trashed:false,completedAt:now()});
+}
 window.archiveTask=archiveTask;
 function unarchiveTask(id){updateTask(id,{done:false,archived:false,completedAt:null});}
 window.unarchiveTask=unarchiveTask;
@@ -980,10 +994,28 @@ window.restoreTask=restoreTask;
 function toggleDone(id){
   const t=getTask(id);if(!t||t.trashed)return;
   if(!t.done){
-    Object.assign(t,{done:true,archived:true,completedAt:now()});
+    // Block if any non-trashed subtask is not yet done
+    const children=getChildren(id).filter(c=>!c.trashed);
+    const undone=children.filter(c=>!c.done&&!c.archived);
+    if(undone.length>0){
+      // Flash the checkbox red to indicate it's blocked
+      const chkEl=document.querySelector(`.task-item[data-id="${id}"] .chk`);
+      if(chkEl){
+        chkEl.classList.add('chk-blocked');
+        setTimeout(()=>chkEl.classList.remove('chk-blocked'),400);
+      }
+      // Also flash in detail panel subtask list if open
+      const dChk=document.querySelector(`.d-sub-row[data-sub-id="${id}"] .chk`);
+      if(dChk){dChk.classList.add('chk-blocked');setTimeout(()=>dChk.classList.remove('chk-blocked'),400);}
+      return;
+    }
+    // Mark done — stays in active view and sinks to bottom (not archived yet)
+    Object.assign(t,{done:true,completedAt:now()});
     save();render();
-    setTimeout(()=>{setView('archive');selectTask(id);},350);
-  }else{updateTask(id,{done:false,archived:false,completedAt:null});}
+    if(state.activeTaskId===id)renderDetail();
+  }else{
+    updateTask(id,{done:false,archived:false,completedAt:null});
+  }
 }
 window.toggleDone=toggleDone;
 
@@ -1120,38 +1152,36 @@ function renderTagsHtml(task){
   return html;
 }
 
-function renderTaskNode(task,depth){
-  const children=getChildren(task.id).filter(c=>!c.archived&&!c.trashed);
-  const hasChildren=children.length>0,isCollapsed=!!state.collapsed[task.id];
+function renderTaskNode(task){
+  // Subtasks are managed in the detail panel only — only root tasks render here
+  const children=getChildren(task.id).filter(c=>!c.trashed);
+  const hasChildren=children.length>0;
   if(task.archived||task.trashed)return'';
   if(isFilterActive()&&!shouldShowTask(task))return'';
-  let indent='';for(let i=0;i<depth;i++)indent+=`<div class="indent-segment"></div>`;
-  const childrenHtml=hasChildren&&!isCollapsed?children.map(c=>renderTaskNode(c,depth+1)).join(''):'';
-  const doneChildren=children.filter(c=>c.done).length;
+  const doneChildren=children.filter(c=>c.done||c.archived).length;
+  const allDone=hasChildren&&doneChildren===children.length;
+  // Checkbox class: partial (some done) or normal
+  const chkExtra=task.done?' on':hasChildren&&!allDone?' chk-partial':'';
   return`<div class="task-row" data-id="${task.id}">
     <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}"
       data-id="${task.id}" draggable="true"
       ondragstart="onDragStart(event,'${task.id}')" ondragover="onDragOver(event,'${task.id}')"
       ondragleave="onDragLeave(event,'${task.id}')" ondrop="onDrop(event,'${task.id}')"
       ondragend="onDragEnd(event)" onclick="selectTask('${task.id}')">
-      <div class="indent-guide">${indent}</div>
       <div class="task-left">
         <div class="drag-handle"><span></span><span></span><span></span></div>
-        <div class="chk${task.done?' on':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${task.done?'✓':''}</div>
+        <div class="chk${chkExtra}" onclick="event.stopPropagation();toggleDone('${task.id}')" title="${hasChildren&&!allDone?'Complete all subtasks first':task.done?'Mark as active':'Mark complete'}">${task.done?'✓':''}</div>
         <div class="task-content">
           <div class="task-title-row">
             <span class="task-name${task.done?' done':''}" onclick="event.stopPropagation();startInlineEditTitle('${task.id}')" title="Click to edit">${esc(task.text)}</span>
-            ${hasChildren?`<button class="collapse-btn" onclick="event.stopPropagation();toggleCollapse('${task.id}')">${isCollapsed?'▶ '+children.length:'▾ '+children.length}</button>`:''}
           </div>
-          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren&&!isCollapsed?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
+          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
         </div>
       </div>
       <div class="task-right">
-        ${task.parentId?`<button class="task-action" title="Promote to root" onclick="event.stopPropagation();promoteToRoot('${task.id}')">↑</button>`:''}
         <button class="task-action del" title="Move to Trash" onclick="event.stopPropagation();trashTask('${task.id}')">🗑</button>
       </div>
     </div>
-    <div class="task-children${isCollapsed?' collapsed':''}">${childrenHtml}</div>
   </div>`;
 }
 
@@ -1218,11 +1248,21 @@ function renderTasks(){
     </div></div>`).join('');
     return;
   }
-  const roots=getRootTasks().filter(t=>!t.archived&&!t.trashed);
-  if(!roots.length){area.innerHTML=`<div class="empty-state"><div class="big">◈</div><h3>No tasks yet</h3><p>Type a task title above and press Enter</p></div>`;return;}
-  const filtered=isFilterActive()?roots.filter(r=>shouldShowTask(r)):roots;
-  if(!filtered.length){area.innerHTML=`<div class="empty-state"><div class="big">◎</div><h3>No matches</h3><p>No tasks match the active filters</p></div>`;return;}
-  area.innerHTML=filtered.map(t=>renderTaskNode(t,0)).join('');
+  // Active view: undone tasks maintain order, done tasks sink to bottom
+  const allRoots=state.tasks.filter(t=>!t.parentId&&!t.archived&&!t.trashed)
+    .sort((a,b)=>(a.order||0)-(b.order||0));
+  if(!allRoots.length){area.innerHTML=`<div class="empty-state"><div class="big">◈</div><h3>No tasks yet</h3><p>Type a task title above and press Enter</p></div>`;return;}
+  const undone=allRoots.filter(t=>!t.done);
+  const done=allRoots.filter(t=>t.done);
+  const filteredUndone=isFilterActive()?undone.filter(r=>shouldShowTask(r)):undone;
+  const filteredDone=isFilterActive()?done.filter(r=>shouldShowTask(r)):done;
+  if(!filteredUndone.length&&!filteredDone.length){area.innerHTML=`<div class="empty-state"><div class="big">◎</div><h3>No matches</h3><p>No tasks match the active filters</p></div>`;return;}
+  let html=filteredUndone.map(t=>renderTaskNode(t)).join('');
+  if(filteredDone.length){
+    html+=`<div class="done-section-label">COMPLETED (${filteredDone.length})</div>`;
+    html+=filteredDone.map(t=>renderTaskNode(t)).join('');
+  }
+  area.innerHTML=html;
 }
 
 function render(){
@@ -1680,7 +1720,8 @@ function renderDetail(){
     </div>
 
     <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0;margin-bottom:18px;border-bottom:1px solid var(--border);border-top:1px solid var(--border);">
-      ${!isReadOnly&&!isArchived?`<button class="btn accent" style="font-size:10px;padding:5px 10px;" onclick="archiveTask('${t.id}')">✓ Mark Complete</button>`:''}
+      ${!isReadOnly&&!isArchived&&!t.done?`<button class="btn accent" style="font-size:10px;padding:5px 10px;" onclick="archiveTask('${t.id}')">✓ Mark Complete</button>`:''}
+      ${!isReadOnly&&!isArchived&&t.done?`<button class="btn accent" style="font-size:10px;padding:5px 10px;" onclick="archiveTask('${t.id}')">↑ Archive</button><button class="btn" style="font-size:10px;padding:5px 10px;" onclick="toggleDone('${t.id}')">↩ Unmark Done</button>`:''}
       ${isArchived&&!isTrashed?`<button class="btn" style="font-size:10px;padding:5px 10px;" onclick="unarchiveTask('${t.id}')">↩ Restore Active</button>`:''}
       ${!isTrashed?`<button class="btn danger" style="font-size:10px;padding:5px 10px;" onclick="trashTask('${t.id}')">🗑 Move to Trash</button>`:''}
       ${isTrashed?`<button class="btn restore" style="font-size:10px;padding:5px 10px;" onclick="restoreTask('${t.id}')">↩ Restore from Trash</button>`:''}
@@ -2026,24 +2067,22 @@ let dragId=null,dragOverId=null;
 window.onDragStart=function(e,id){dragId=id;e.dataTransfer.effectAllowed='move';setTimeout(()=>{const el=document.querySelector(`.task-item[data-id="${id}"]`);if(el)el.classList.add('dragging');},0);};
 window.onDragOver=function(e,id){
   if(!dragId||dragId===id)return;e.preventDefault();
-  const desc=getAllDescendants(dragId).map(d=>d.id);if(desc.includes(id))return;
   const el=document.querySelector(`.task-item[data-id="${id}"]`);if(!el)return;
-  const rect=el.getBoundingClientRect(),xRatio=(e.clientX-rect.left)/rect.width;
   document.querySelectorAll('.task-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-indent'));
-  if(xRatio>0.5){el.classList.add('drag-over-indent');dragOverId='indent:'+id;}
-  else{el.classList.add('drag-over-top');dragOverId='before:'+id;}
+  el.classList.add('drag-over-top');
+  dragOverId='before:'+id;
   e.dataTransfer.dropEffect='move';
 };
 window.onDragLeave=function(e,id){const el=document.querySelector(`.task-item[data-id="${id}"]`);if(el)el.classList.remove('drag-over-top','drag-over-indent');};
 window.onDrop=function(e,id){
   e.preventDefault();if(!dragId||!dragOverId)return;
-  const desc=getAllDescendants(dragId).map(d=>d.id);if(desc.includes(id))return;
-  if(dragOverId.startsWith('indent:')){makeSubtask(dragId,id);}
-  else{
-    const target=getTask(id),dragged=getTask(dragId);if(!dragged)return;
+  const target=getTask(id),dragged=getTask(dragId);
+  if(dragged&&target){
+    // Only reorder within the same level
     dragged.parentId=target.parentId;
-    const siblings=(target.parentId?getChildren(target.parentId):getRootTasks()).filter(t=>t.id!==dragId);
-    const idx=siblings.findIndex(t=>t.id===id);siblings.splice(idx,0,dragged);siblings.forEach((t,i)=>t.order=i);
+    const siblings=state.tasks.filter(t=>t.parentId===target.parentId&&!t.trashed&&t.id!==dragId);
+    const idx=siblings.findIndex(t=>t.id===id);
+    if(idx!==-1){siblings.splice(idx,0,dragged);siblings.forEach((t,i)=>t.order=i);}
     save();render();
   }
   document.querySelectorAll('.task-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-indent','dragging'));
