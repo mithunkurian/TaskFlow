@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<!-- HomeAI v1.0 | Smart Home Assistant powered by Claude -->
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HomeAI — Smart Home Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#09090f;
+  --surface:#0f0f1a;
+  --surface2:#141428;
+  --surface3:#1a1a32;
+  --border:#1e1e35;
+  --border2:#28284a;
+  --text:#f0f0f8;
+  --muted:#6b6b8a;
+  --dim:#3a3a55;
+  --accent:#6366f1;
+  --accent-light:#818cf8;
+  --accent-dim:rgba(99,102,241,0.15);
+  --green:#22c55e;
+  --green-dim:rgba(34,197,94,0.12);
+  --red:#ef4444;
+  --red-dim:rgba(239,68,68,0.12);
+  --amber:#f59e0b;
+  --amber-dim:rgba(245,158,11,0.12);
+  --blue:#3b82f6;
+  --radius:12px;
+  --radius-sm:8px;
+  --sidebar-w:200px;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+/* ===== TOP HEADER ===== */
+#header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:56px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  position:fixed;top:0;left:0;right:0;z-index:100;
+}
+.header-left{display:flex;align-items:center;gap:12px;}
+#menu-btn{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:18px;padding:4px;display:flex;align-items:center;
+  transition:color .15s;
+}
+#menu-btn:hover{color:var(--text);}
+.logo{font-size:17px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.logo-icon{font-size:20px;}
+.logo-text{letter-spacing:-.3px;}
+.logo-text span{color:var(--accent-light);}
+.header-center{}
+#home-name-display{
+  font-size:13px;font-weight:500;color:var(--muted);
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px;cursor:pointer;transition:all .15s;
+}
+#home-name-display:hover{color:var(--text);border-color:var(--border2);}
+.header-right{display:flex;align-items:center;gap:10px;}
+#clock{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.conn-badge{
+  display:flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:500;
+  padding:3px 9px;border-radius:20px;
+  background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.2);
+  transition:all .3s;
+}
+.conn-badge.offline{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,.2);}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+/* ===== LAYOUT ===== */
+#app{display:flex;height:100vh;padding-top:56px;}
+#sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 10px;gap:4px;
+  transition:transform .25s,width .25s,min-width .25s;overflow:hidden;
+}
+#sidebar.collapsed{width:0;min-width:0;padding:0;}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;
+  background:none;border:none;color:var(--muted);
+  padding:9px 12px;border-radius:var(--radius-sm);
+  cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;
+  transition:all .15s;width:100%;text-align:left;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--surface2);color:var(--text);}
+.nav-btn.active{background:var(--accent-dim);color:var(--accent-light);}
+.nav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
+.nav-sep{height:1px;background:var(--border);margin:8px 4px;}
+.nav-settings{margin-top:auto;}
+#content{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ===== PANELS ===== */
+.panel{display:none;flex:1;overflow:hidden;}
+.panel.active{display:flex;flex-direction:column;}
+.panel-header{
+  padding:20px 24px 16px;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.panel-title{font-size:18px;font-weight:600;margin-bottom:3px;}
+.panel-sub{font-size:12px;color:var(--muted);}
+.panel-body{flex:1;overflow-y:auto;padding:20px 24px;}
+
+/* ===== CHAT PANEL ===== */
+#panel-chat{position:relative;}
+#chat-messages{
+  flex:1;overflow-y:auto;padding:20px 24px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.msg{display:flex;gap:10px;max-width:780px;animation:fadeUp .2s ease;}
+.msg.user{flex-direction:row-reverse;align-self:flex-end;}
+.msg-avatar{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  background:var(--surface2);border:1px solid var(--border2);margin-top:2px;
+}
+.msg.ai .msg-avatar{background:var(--accent-dim);border-color:rgba(99,102,241,.3);}
+.msg.user .msg-avatar{background:var(--surface3);}
+.msg-bubble{
+  padding:11px 15px;border-radius:var(--radius);
+  font-size:14px;line-height:1.6;max-width:100%;
+}
+.msg.ai .msg-bubble{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:2px var(--radius) var(--radius) var(--radius);
+}
+.msg.user .msg-bubble{
+  background:var(--accent);color:#fff;
+  border-radius:var(--radius) 2px var(--radius) var(--radius);
+}
+.msg.error .msg-bubble{background:var(--red-dim);border:1px solid rgba(239,68,68,.3);color:var(--red);}
+.msg-time{font-size:11px;color:var(--dim);margin-top:4px;}
+.msg.user .msg-time{text-align:right;}
+
+/* Tool action indicator */
+.tool-action{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--muted);
+  background:var(--surface3);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:6px 12px;margin-bottom:4px;
+  animation:fadeIn .2s;
+}
+.tool-action-icon{font-size:15px;}
+
+/* Typing indicator */
+.typing-indicator{display:flex;align-items:center;gap:5px;padding:4px 0;}
+.typing-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--muted);
+  animation:typingBounce 1.4s infinite;
+}
+.typing-dot:nth-child(2){animation-delay:.2s;}
+.typing-dot:nth-child(3){animation-delay:.4s;}
+
+/* Suggestions */
+#chat-suggestions{
+  display:flex;flex-wrap:wrap;gap:7px;padding:10px 24px;flex-shrink:0;
+  border-top:1px solid var(--border);
+}
+.chip{
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--muted);font-family:inherit;font-size:12px;
+  padding:5px 13px;border-radius:20px;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.chip:hover{background:var(--surface3);color:var(--text);border-color:var(--accent);}
+
+/* Chat input */
+#chat-input-area{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 24px;border-top:1px solid var(--border);flex-shrink:0;
+}
+#chat-input{
+  flex:1;background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);font-family:inherit;font-size:14px;
+  padding:10px 16px;border-radius:var(--radius);outline:none;
+  transition:border-color .15s;
+}
+#chat-input::placeholder{color:var(--dim);}
+#chat-input:focus{border-color:var(--accent);}
+#send-btn{
+  background:var(--accent);border:none;color:#fff;font-family:inherit;
+  font-size:13px;font-weight:600;padding:10px 20px;border-radius:var(--radius);
+  cursor:pointer;transition:background .15s;white-space:nowrap;flex-shrink:0;
+}
+#send-btn:hover{background:var(--accent-light);}
+#send-btn:disabled{background:var(--dim);cursor:not-allowed;}
+
+/* ===== DASHBOARD PANEL ===== */
+.greeting-card{
+  background:linear-gradient(135deg,var(--accent-dim),transparent);
+  border:1px solid rgba(99,102,241,.25);
+  border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;
+}
+.greeting-time{font-size:12px;color:var(--accent-light);font-weight:500;margin-bottom:6px;}
+.greeting-msg{font-size:22px;font-weight:600;margin-bottom:4px;}
+.greeting-sub{font-size:13px;color:var(--muted);}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px;}
+.stat-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+  display:flex;flex-direction:column;gap:6px;
+  transition:border-color .15s;
+}
+.stat-card:hover{border-color:var(--border2);}
+.stat-icon{font-size:22px;}
+.stat-val{font-size:20px;font-weight:700;}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.stat-card.on .stat-val{color:var(--green);}
+.stat-card.warn .stat-val{color:var(--amber);}
+.stat-card.info .stat-val{color:var(--accent-light);}
+
+.section-title{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;}
+.scenes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:24px;}
+.scene-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 14px;
+  cursor:pointer;text-align:left;transition:all .15s;
+  font-family:inherit;color:var(--text);
+}
+.scene-btn:hover{background:var(--surface3);border-color:var(--border2);transform:translateY(-1px);}
+.scene-btn:active{transform:translateY(0);}
+.scene-icon{font-size:24px;margin-bottom:8px;display:block;}
+.scene-name{font-size:13px;font-weight:600;margin-bottom:3px;}
+.scene-desc{font-size:11px;color:var(--muted);}
+
+/* ===== ROOMS PANEL ===== */
+.rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+.room-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;transition:all .15s;
+}
+.room-card:hover{border-color:var(--border2);}
+.room-card.light-on{border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.04);}
+.room-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.room-name{font-size:14px;font-weight:600;}
+.room-icon{font-size:20px;}
+.room-status{font-size:11px;color:var(--muted);margin-top:2px;}
+.light-on .room-status{color:var(--amber);}
+
+/* Toggle switch */
+.toggle{position:relative;display:inline-block;width:40px;height:22px;}
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-slider{
+  position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+  background:var(--dim);border-radius:22px;transition:.3s;
+}
+.toggle-slider::before{
+  content:'';position:absolute;height:16px;width:16px;
+  left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;
+}
+.toggle input:checked+.toggle-slider{background:var(--amber);}
+.toggle input:checked+.toggle-slider::before{transform:translateX(18px);}
+
+/* Brightness slider */
+.brightness-row{margin-top:12px;}
+.brightness-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;}
+.brightness-slider{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:4px;border-radius:4px;background:var(--border2);outline:none;
+  cursor:pointer;transition:background .2s;
+}
+.brightness-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--amber);cursor:pointer;transition:transform .15s;
+}
+.brightness-slider::-webkit-slider-thumb:hover{transform:scale(1.2);}
+
+/* Color temp buttons */
+.color-row{display:flex;gap:6px;margin-top:10px;}
+.color-btn{
+  flex:1;background:var(--surface3);border:1px solid var(--border);
+  color:var(--muted);font-size:11px;font-family:inherit;
+  padding:5px 4px;border-radius:6px;cursor:pointer;transition:all .15s;text-align:center;
+}
+.color-btn:hover{color:var(--text);border-color:var(--border2);}
+.color-btn.active{border-color:var(--amber);color:var(--amber);}
+
+/* ===== SECURITY PANEL ===== */
+.alarm-banner{
+  border-radius:var(--radius);padding:24px;margin-bottom:20px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--green-dim);border:1px solid rgba(34,197,94,.25);
+  transition:all .3s;
+}
+.alarm-banner.armed-home{background:var(--amber-dim);border-color:rgba(245,158,11,.3);}
+.alarm-banner.armed-away{background:var(--red-dim);border-color:rgba(239,68,68,.3);}
+.alarm-status-icon{font-size:40px;}
+.alarm-info{}
+.alarm-title{font-size:20px;font-weight:700;}
+.alarm-sub{font-size:13px;color:var(--muted);margin-top:3px;}
+.alarm-actions{display:flex;flex-direction:column;gap:8px;}
+.alarm-btn{
+  padding:8px 16px;border-radius:var(--radius-sm);border:none;
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  transition:opacity .15s;
+}
+.alarm-btn:hover{opacity:.85;}
+.alarm-btn.disarm{background:var(--green);color:#fff;}
+.alarm-btn.arm-home{background:var(--amber);color:#fff;}
+.alarm-btn.arm-away{background:var(--red);color:#fff;}
+
+.doors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+.door-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+  display:flex;align-items:center;justify-content:space-between;
+  transition:all .15s;
+}
+.door-info{}
+.door-icon{font-size:20px;margin-bottom:4px;}
+.door-name{font-size:13px;font-weight:600;}
+.door-status{font-size:11px;margin-top:2px;}
+.door-status.locked{color:var(--green);}
+.door-status.unlocked{color:var(--red);}
+.door-status.open{color:var(--amber);}
+.door-status.closed{color:var(--muted);}
+.lock-btn{
+  background:var(--surface3);border:1px solid var(--border2);
+  color:var(--muted);font-family:inherit;font-size:12px;
+  padding:6px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;
+}
+.lock-btn:hover{color:var(--text);border-color:var(--accent);}
+.lock-btn.locked-state{color:var(--green);border-color:rgba(34,197,94,.3);}
+
+/* ===== CLIMATE PANEL ===== */
+.thermo-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:28px;text-align:center;margin-bottom:20px;
+}
+.thermo-current{font-size:72px;font-weight:700;line-height:1;color:var(--amber);}
+.thermo-unit{font-size:24px;color:var(--muted);vertical-align:top;margin-top:12px;display:inline-block;}
+.thermo-label{font-size:13px;color:var(--muted);margin-top:8px;}
+.thermo-target-row{
+  display:flex;align-items:center;justify-content:center;gap:16px;margin-top:20px;
+}
+.thermo-target-btn{
+  width:36px;height:36px;border-radius:50%;border:1px solid var(--border2);
+  background:var(--surface3);color:var(--text);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.thermo-target-btn:hover{background:var(--surface3);border-color:var(--accent);color:var(--accent-light);}
+.thermo-target-val{font-size:24px;font-weight:700;}
+.thermo-modes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px;}
+.mode-btn{
+  padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface3);color:var(--muted);font-family:inherit;font-size:12px;
+  cursor:pointer;transition:all .15s;text-align:center;
+}
+.mode-btn:hover{color:var(--text);border-color:var(--border2);}
+.mode-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent-light);}
+.mode-icon{font-size:18px;display:block;margin-bottom:4px;}
+
+/* ===== SETTINGS PANEL ===== */
+.settings-section{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:20px;margin-bottom:16px;
+}
+.settings-section-title{font-size:13px;font-weight:600;margin-bottom:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.setting-row:last-child{border-bottom:none;padding-bottom:0;}
+.setting-label{font-size:13px;font-weight:500;}
+.setting-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+.setting-input{
+  background:var(--surface3);border:1px solid var(--border2);
+  color:var(--text);font-family:inherit;font-size:13px;
+  padding:7px 12px;border-radius:var(--radius-sm);outline:none;
+  transition:border-color .15s;min-width:200px;
+}
+.setting-input:focus{border-color:var(--accent);}
+.btn{
+  padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);
+  background:var(--surface3);color:var(--text);font-family:inherit;font-size:13px;
+  cursor:pointer;transition:all .15s;font-weight:500;
+}
+.btn:hover{background:var(--border2);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{background:var(--accent-light);}
+.btn.danger{background:var(--red-dim);border-color:rgba(239,68,68,.3);color:var(--red);}
+.btn.danger:hover{background:rgba(239,68,68,.2);}
+
+/* ===== BOTTOM NAV (mobile) ===== */
+#bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:8px 4px;z-index:100;
+  grid-template-columns:repeat(5,1fr);gap:2px;
+}
+.bnav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  padding:6px 4px;border-radius:var(--radius-sm);font-family:inherit;transition:color .15s;
+}
+.bnav-btn.active{color:var(--accent-light);}
+.bnav-btn:hover{color:var(--text);}
+.bnav-icon{font-size:18px;}
+.bnav-label{font-size:10px;font-weight:500;}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-6px);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+/* ===== MISC ===== */
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;}
+.tag.on{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.2);}
+.tag.off{background:var(--surface3);color:var(--muted);border:1px solid var(--border);}
+.tag.warn{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.2);}
+.divider{height:1px;background:var(--border);margin:16px 0;}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted);}
+.empty-state-icon{font-size:48px;margin-bottom:12px;opacity:.5;}
+.empty-state-text{font-size:14px;}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  #sidebar{display:none;}
+  #bottom-nav{display:grid;}
+  #app{padding-bottom:68px;}
+  .panel-body{padding:16px;}
+  .panel-header{padding:16px;}
+  #chat-messages{padding:16px;}
+  #chat-input-area{padding:10px 16px;}
+  #chat-suggestions{padding:8px 16px;}
+  .greeting-msg{font-size:18px;}
+  .thermo-current{font-size:56px;}
+}
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .scenes-grid{grid-template-columns:1fr 1fr;}
+  .rooms-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header id="header">
+  <div class="header-left">
+    <button id="menu-btn" title="Toggle sidebar">☰</button>
+    <div class="logo">
+      <span class="logo-icon">🏠</span>
+      <span class="logo-text">Home<span>AI</span></span>
+    </div>
+  </div>
+  <div class="header-center">
+    <button id="home-name-display" title="Click to rename your home">My Home</button>
+  </div>
+  <div class="header-right">
+    <span id="clock"></span>
+    <div class="conn-badge" id="conn-badge">
+      <div class="conn-dot"></div>
+      <span id="conn-text">Online</span>
+    </div>
+  </div>
+</header>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <button class="nav-btn active" data-panel="chat">
+      <span class="nav-icon">💬</span>
+      <span class="nav-label">Chat</span>
+    </button>
+    <button class="nav-btn" data-panel="dashboard">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Dashboard</span>
+    </button>
+    <button class="nav-btn" data-panel="rooms">
+      <span class="nav-icon">💡</span>
+      <span class="nav-label">Lights</span>
+    </button>
+    <button class="nav-btn" data-panel="security">
+      <span class="nav-icon">🔒</span>
+      <span class="nav-label">Security</span>
+    </button>
+    <button class="nav-btn" data-panel="climate">
+      <span class="nav-icon">🌡️</span>
+      <span class="nav-label">Climate</span>
+    </button>
+    <div class="nav-sep"></div>
+    <button class="nav-btn nav-settings" data-panel="settings">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- ── CHAT PANEL ── -->
+    <div id="panel-chat" class="panel active">
+      <div id="chat-messages"></div>
+      <div id="chat-suggestions">
+        <button class="chip" onclick="sendChip('Turn off all lights')">💡 All lights off</button>
+        <button class="chip" onclick="sendChip('Good night routine')">🌙 Good night</button>
+        <button class="chip" onclick="sendChip('Good morning routine')">☀️ Good morning</button>
+        <button class="chip" onclick="sendChip('What is my home status?')">📊 Home status</button>
+        <button class="chip" onclick="sendChip('Lock all doors')">🔒 Lock all doors</button>
+        <button class="chip" onclick="sendChip('Set movie night scene')">🎬 Movie night</button>
+      </div>
+      <div id="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Ask HomeAI anything… e.g. 'Turn on the living room lights'" autocomplete="off"/>
+        <button id="send-btn">Send ➤</button>
+      </div>
+    </div>
+
+    <!-- ── DASHBOARD PANEL ── -->
+    <div id="panel-dashboard" class="panel">
+      <div class="panel-body">
+        <div class="greeting-card">
+          <div class="greeting-time" id="greeting-time">Good Evening</div>
+          <div class="greeting-msg" id="greeting-msg">Welcome home! 👋</div>
+          <div class="greeting-sub" id="greeting-sub">Everything looks good.</div>
+        </div>
+
+        <div class="section-title">Current Status</div>
+        <div class="stats-row" id="stats-row"><!-- filled by JS --></div>
+
+        <div class="section-title">Quick Scenes</div>
+        <div class="scenes-grid">
+          <button class="scene-btn" onclick="applyScene('morning')">
+            <span class="scene-icon">☀️</span>
+            <div class="scene-name">Good Morning</div>
+            <div class="scene-desc">Wake up routine</div>
+          </button>
+          <button class="scene-btn" onclick="applyScene('night')">
+            <span class="scene-icon">🌙</span>
+            <div class="scene-name">Good Night</div>
+            <div class="scene-desc">Sleep time</div>
+          </button>
+          <button class="scene-btn" onclick="applyScene('away')">
+            <span class="scene-icon">🏖️</span>
+            <div class="scene-name">Away</div>
+            <div class="scene-desc">Leaving home</div>
+          </button>
+          <button class="scene-btn" onclick="applyScene('movie')">
+            <span class="scene-icon">🎬</span>
+            <div class="scene-name">Movie Night</div>
+            <div class="scene-desc">Lights down, relax</div>
+          </button>
+          <button class="scene-btn" onclick="applyScene('relax')">
+            <span class="scene-icon">🧘</span>
+            <div class="scene-name">Relax</div>
+            <div class="scene-desc">Calm atmosphere</div>
+          </button>
+          <button class="scene-btn" onclick="applyScene('party')">
+            <span class="scene-icon">🎉</span>
+            <div class="scene-name">Party</div>
+            <div class="scene-desc">Bright & festive</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LIGHTS / ROOMS PANEL ── -->
+    <div id="panel-rooms" class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Lights &amp; Rooms</div>
+        <div class="panel-sub" id="lights-sub">Manage your lights room by room</div>
+      </div>
+      <div class="panel-body">
+        <div class="rooms-grid" id="rooms-grid"><!-- filled by JS --></div>
+      </div>
+    </div>
+
+    <!-- ── SECURITY PANEL ── -->
+    <div id="panel-security" class="panel">
+      <div class="panel-body">
+        <div class="alarm-banner" id="alarm-banner">
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div class="alarm-status-icon" id="alarm-icon">🟢</div>
+            <div class="alarm-info">
+              <div class="alarm-title" id="alarm-title">SECURED</div>
+              <div class="alarm-sub" id="alarm-sub">Your home is protected</div>
+            </div>
+          </div>
+          <div class="alarm-actions">
+            <button class="alarm-btn disarm" onclick="setAlarm('disarmed')">Disarm</button>
+            <button class="alarm-btn arm-home" onclick="setAlarm('armed_home')">Arm Home</button>
+            <button class="alarm-btn arm-away" onclick="setAlarm('armed_away')">Arm Away</button>
+          </div>
+        </div>
+
+        <div class="section-title">Doors &amp; Locks</div>
+        <div class="doors-grid" id="doors-grid"><!-- filled by JS --></div>
+      </div>
+    </div>
+
+    <!-- ── CLIMATE PANEL ── -->
+    <div id="panel-climate" class="panel">
+      <div class="panel-body">
+        <div class="thermo-card">
+          <div>
+            <span class="thermo-current" id="thermo-current">72</span>
+            <span class="thermo-unit">°F</span>
+          </div>
+          <div class="thermo-label">Current Temperature</div>
+          <div class="thermo-target-row">
+            <button class="thermo-target-btn" onclick="adjustTarget(-1)">−</button>
+            <div>
+              <span class="thermo-target-val" id="thermo-target">72</span>
+              <span style="font-size:14px;color:var(--muted)">°F target</span>
+            </div>
+            <button class="thermo-target-btn" onclick="adjustTarget(1)">+</button>
+          </div>
+          <div class="thermo-modes" id="thermo-modes">
+            <button class="mode-btn" data-mode="heat" onclick="setMode('heat')">
+              <span class="mode-icon">🔥</span>Heat
+            </button>
+            <button class="mode-btn" data-mode="cool" onclick="setMode('cool')">
+              <span class="mode-icon">❄️</span>Cool
+            </button>
+            <button class="mode-btn active" data-mode="auto" onclick="setMode('auto')">
+              <span class="mode-icon">🔄</span>Auto
+            </button>
+            <button class="mode-btn" data-mode="off" onclick="setMode('off')">
+              <span class="mode-icon">⭕</span>Off
+            </button>
+          </div>
+        </div>
+
+        <div class="section-title">Energy Tip</div>
+        <div class="settings-section" style="padding:16px;">
+          <div style="font-size:13px;color:var(--muted);line-height:1.6;">
+            💡 <strong style="color:var(--text)">Smart tip:</strong> Setting your thermostat to 68°F at night can save up to 10% on your heating bill. Ask HomeAI to create a schedule!
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS PANEL ── -->
+    <div id="panel-settings" class="panel">
+      <div class="panel-body">
+        <div class="settings-section">
+          <div class="settings-section-title">Home Settings</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Home Name</div>
+              <div class="setting-desc">What should HomeAI call your home?</div>
+            </div>
+            <input type="text" class="setting-input" id="home-name-input" value="My Home" placeholder="Enter home name"/>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Temperature Unit</div>
+              <div class="setting-desc">Fahrenheit or Celsius</div>
+            </div>
+            <select class="setting-input" id="temp-unit-select">
+              <option value="F">Fahrenheit (°F)</option>
+              <option value="C">Celsius (°C)</option>
+            </select>
+          </div>
+          <div style="margin-top:14px;text-align:right;">
+            <button class="btn primary" onclick="saveSettings()">Save Settings</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">AI Settings</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">AI Model</div>
+              <div class="setting-desc">Currently using the best available model</div>
+            </div>
+            <span class="tag on">Claude Opus 4.6</span>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Clear Chat History</div>
+              <div class="setting-desc">Start a fresh conversation with HomeAI</div>
+            </div>
+            <button class="btn" onclick="clearChat()">Clear Chat</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">About HomeAI</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7;">
+            <p>🏠 <strong style="color:var(--text)">HomeAI v1.0</strong> — AI-powered smart home assistant</p>
+            <p style="margin-top:8px;">Powered by <strong style="color:var(--accent-light)">Claude Opus 4.6</strong> with Adaptive Thinking. Your AI brain understands natural language — just talk to it like a person!</p>
+            <p style="margin-top:8px;">💡 <em>Try saying: "Turn off all lights and lock the doors, I'm going to bed"</em></p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Reset</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Reset all devices to their default state. This won't affect your settings.</div>
+          <button class="btn danger" onclick="resetHome()">Reset All Devices</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- MOBILE BOTTOM NAV -->
+<nav id="bottom-nav">
+  <button class="bnav-btn active" data-panel="chat"><span class="bnav-icon">💬</span><span class="bnav-label">Chat</span></button>
+  <button class="bnav-btn" data-panel="dashboard"><span class="bnav-icon">📊</span><span class="bnav-label">Dash</span></button>
+  <button class="bnav-btn" data-panel="rooms"><span class="bnav-icon">💡</span><span class="bnav-label">Lights</span></button>
+  <button class="bnav-btn" data-panel="security"><span class="bnav-icon">🔒</span><span class="bnav-label">Security</span></button>
+  <button class="bnav-btn" data-panel="settings"><span class="bnav-icon">⚙️</span><span class="bnav-label">Settings</span></button>
+</nav>
+
+<script>
+'use strict';
+
+// ========================================================
+//  HOME STATE — All virtual devices live here
+// ========================================================
+const HOME = {
+  rooms: {
+    living_room:  { name: 'Living Room',  icon: '🛋️', lights: { on: false, brightness: 80, color: 'warm' } },
+    bedroom:      { name: 'Bedroom',      icon: '🛏️', lights: { on: false, brightness: 50, color: 'warm' } },
+    kitchen:      { name: 'Kitchen',      icon: '🍳', lights: { on: false, brightness: 100, color: 'white' } },
+    bathroom:     { name: 'Bathroom',     icon: '🚿', lights: { on: false, brightness: 70, color: 'white' } },
+    kids_room:    { name: 'Kids Room',    icon: '🧸', lights: { on: false, brightness: 70, color: 'warm' } },
+    garage:       { name: 'Garage',       icon: '🚗', lights: { on: false, brightness: 100, color: 'white' } }
+  },
+  thermostat: { temperature: 72, target: 72, mode: 'auto', unit: 'F' },
+  security: {
+    alarm: 'disarmed',
+    doors: {
+      front_door:  { name: 'Front Door',   icon: '🚪', locked: true,  open: false },
+      back_door:   { name: 'Back Door',    icon: '🚪', locked: true,  open: false },
+      garage_door: { name: 'Garage Door',  icon: '🚗', locked: false, open: false }
+    }
+  },
+  appliances: {
+    tv:    { name: 'Smart TV',        icon: '📺', on: false },
+    fan:   { name: 'Ceiling Fan',     icon: '💨', on: false },
+    washer:{ name: 'Washing Machine', icon: '🫧', on: false }
+  }
+};
+
+// ========================================================
+//  SETTINGS (stored in localStorage)
+// ========================================================
+let SETTINGS = {
+  homeName: 'My Home',
+  tempUnit: 'F'
+};
+try {
+  const saved = localStorage.getItem('homeai_settings');
+  if (saved) Object.assign(SETTINGS, JSON.parse(saved));
+} catch(e){}
+
+function saveSettingsToStorage() {
+  try { localStorage.setItem('homeai_settings', JSON.stringify(SETTINGS)); } catch(e){}
+}
+
+// ========================================================
+//  TOOLS — What Claude can do with your home
+// ========================================================
+const TOOLS = [
+  {
+    name: 'control_lights',
+    description: 'Turn lights on or off, adjust brightness, or change color temperature in any room. Use this whenever the user mentions lights.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        room: {
+          type: 'string',
+          enum: ['living_room','bedroom','kitchen','bathroom','kids_room','garage','all'],
+          description: 'Which room to control. Use "all" for all rooms.'
+        },
+        action: {
+          type: 'string',
+          enum: ['on','off','toggle'],
+          description: 'What to do with the lights.'
+        },
+        brightness: {
+          type: 'integer',
+          minimum: 0,
+          maximum: 100,
+          description: 'Brightness percentage 0-100 (optional).'
+        },
+        color: {
+          type: 'string',
+          enum: ['warm','neutral','cool','white'],
+          description: 'Color temperature (optional). warm=cozy, cool=focus, white=bright.'
+        }
+      },
+      required: ['room','action']
+    }
+  },
+  {
+    name: 'control_thermostat',
+    description: 'Set the thermostat temperature or change heating/cooling mode.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        target_temperature: {
+          type: 'integer',
+          description: 'Target temperature in °F (between 55 and 90).'
+        },
+        mode: {
+          type: 'string',
+          enum: ['heat','cool','auto','off'],
+          description: 'Thermostat mode (optional).'
+        }
+      }
+    }
+  },
+  {
+    name: 'control_security',
+    description: 'Arm/disarm the security alarm, or lock/unlock doors.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        alarm: {
+          type: 'string',
+          enum: ['disarmed','armed_home','armed_away'],
+          description: 'Set alarm state (optional).'
+        },
+        door: {
+          type: 'string',
+          enum: ['front_door','back_door','garage_door','all_doors'],
+          description: 'Which door to control (optional).'
+        },
+        door_action: {
+          type: 'string',
+          enum: ['lock','unlock'],
+          description: 'Lock or unlock the door (optional, use with door field).'
+        }
+      }
+    }
+  },
+  {
+    name: 'control_appliance',
+    description: 'Turn appliances (TV, fan, washing machine) on or off.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        appliance: {
+          type: 'string',
+          enum: ['tv','fan','washer'],
+          description: 'Which appliance to control.'
+        },
+        action: {
+          type: 'string',
+          enum: ['on','off','toggle'],
+          description: 'Turn it on or off.'
+        }
+      },
+      required: ['appliance','action']
+    }
+  },
+  {
+    name: 'set_scene',
+    description: 'Apply a preset home scene that controls multiple devices at once.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        scene: {
+          type: 'string',
+          enum: ['morning','night','away','movie','relax','party'],
+          description: 'Which scene to activate: morning (wake up), night (sleep), away (leaving home), movie (dim lights), relax (calm), party (bright festive).'
+        }
+      },
+      required: ['scene']
+    }
+  },
+  {
+    name: 'get_home_status',
+    description: 'Get the current status of all devices in the home. Use this when the user asks about their home status.',
+    input_schema: {
+      type: 'object',
+      properties: {}
+    }
+  }
+];
+
+// ========================================================
+//  EXECUTE TOOLS — Runs when Claude calls a tool
+// ========================================================
+function executeTool(name, input) {
+  switch (name) {
+
+    case 'control_lights': {
+      const rooms = input.room === 'all' ? Object.keys(HOME.rooms) : [input.room];
+      const changed = [];
+      rooms.forEach(r => {
+        if (!HOME.rooms[r]) return;
+        const light = HOME.rooms[r].lights;
+        if (input.action === 'on')     light.on = true;
+        if (input.action === 'off')    light.on = false;
+        if (input.action === 'toggle') light.on = !light.on;
+        if (input.brightness !== undefined) light.brightness = Math.max(0, Math.min(100, input.brightness));
+        if (input.color) light.color = input.color;
+        changed.push(HOME.rooms[r].name);
+      });
+      return { success: true, message: `Lights updated in: ${changed.join(', ')}` };
+    }
+
+    case 'control_thermostat': {
+      if (input.target_temperature !== undefined) {
+        HOME.thermostat.target = Math.max(55, Math.min(90, input.target_temperature));
+        // Simulate temp moving toward target over time
+        HOME.thermostat.temperature = HOME.thermostat.target;
+      }
+      if (input.mode) HOME.thermostat.mode = input.mode;
+      return { success: true, message: `Thermostat set to ${HOME.thermostat.target}°F, mode: ${HOME.thermostat.mode}` };
+    }
+
+    case 'control_security': {
+      const changes = [];
+      if (input.alarm) {
+        HOME.security.alarm = input.alarm;
+        changes.push(`Alarm: ${input.alarm}`);
+      }
+      if (input.door && input.door_action) {
+        const doors = input.door === 'all_doors' ? Object.keys(HOME.security.doors) : [input.door];
+        doors.forEach(d => {
+          if (!HOME.security.doors[d]) return;
+          HOME.security.doors[d].locked = (input.door_action === 'lock');
+          changes.push(`${HOME.security.doors[d].name}: ${input.door_action}ed`);
+        });
+      }
+      return { success: true, message: changes.join(', ') || 'Security updated' };
+    }
+
+    case 'control_appliance': {
+      const ap = HOME.appliances[input.appliance];
+      if (!ap) return { success: false, message: 'Appliance not found' };
+      if (input.action === 'on')     ap.on = true;
+      if (input.action === 'off')    ap.on = false;
+      if (input.action === 'toggle') ap.on = !ap.on;
+      return { success: true, message: `${ap.name} turned ${ap.on ? 'on' : 'off'}` };
+    }
+
+    case 'set_scene': {
+      const scene = input.scene;
+      const scenes = {
+        morning: () => {
+          Object.values(HOME.rooms).forEach(r => { r.lights.on = true; r.lights.color = 'warm'; r.lights.brightness = 80; });
+          HOME.rooms.kitchen.lights.brightness = 100; HOME.rooms.kitchen.lights.color = 'white';
+          HOME.thermostat.target = 70; HOME.thermostat.temperature = 70; HOME.thermostat.mode = 'auto';
+          HOME.security.alarm = 'disarmed';
+        },
+        night: () => {
+          Object.values(HOME.rooms).forEach(r => r.lights.on = false);
+          HOME.thermostat.target = 68; HOME.thermostat.temperature = 68;
+          HOME.security.alarm = 'armed_home';
+          Object.values(HOME.security.doors).forEach(d => d.locked = true);
+        },
+        away: () => {
+          Object.values(HOME.rooms).forEach(r => r.lights.on = false);
+          HOME.thermostat.target = 65; HOME.thermostat.temperature = 65;
+          HOME.security.alarm = 'armed_away';
+          Object.values(HOME.security.doors).forEach(d => d.locked = true);
+          HOME.appliances.tv.on = false;
+        },
+        movie: () => {
+          Object.values(HOME.rooms).forEach(r => r.lights.on = false);
+          HOME.rooms.living_room.lights.on = true; HOME.rooms.living_room.lights.brightness = 15; HOME.rooms.living_room.lights.color = 'warm';
+          HOME.appliances.tv.on = true;
+          HOME.thermostat.target = 72; HOME.thermostat.temperature = 72;
+        },
+        relax: () => {
+          Object.values(HOME.rooms).forEach(r => { r.lights.on = true; r.lights.brightness = 40; r.lights.color = 'warm'; });
+          HOME.thermostat.target = 72; HOME.thermostat.temperature = 72;
+          HOME.security.alarm = 'disarmed';
+        },
+        party: () => {
+          Object.values(HOME.rooms).forEach(r => { r.lights.on = true; r.lights.brightness = 100; r.lights.color = 'cool'; });
+          HOME.thermostat.target = 70; HOME.thermostat.temperature = 70;
+          HOME.appliances.tv.on = true;
+        }
+      };
+      if (scenes[scene]) { scenes[scene](); return { success: true, message: `${scene} scene applied` }; }
+      return { success: false, message: 'Unknown scene' };
+    }
+
+    case 'get_home_status': {
+      const lightsOn = Object.values(HOME.rooms).filter(r => r.lights.on).length;
+      const allDoors = Object.values(HOME.security.doors);
+      const unlockedDoors = allDoors.filter(d => !d.locked).map(d => d.name);
+      return {
+        lights: Object.fromEntries(Object.entries(HOME.rooms).map(([k,r]) => [r.name, { on: r.lights.on, brightness: r.lights.brightness, color: r.lights.color }])),
+        thermostat: { temperature: HOME.thermostat.temperature, target: HOME.thermostat.target, mode: HOME.thermostat.mode },
+        security: { alarm: HOME.security.alarm, doors: Object.fromEntries(Object.entries(HOME.security.doors).map(([k,d]) => [d.name, { locked: d.locked }])) },
+        appliances: Object.fromEntries(Object.entries(HOME.appliances).map(([k,a]) => [a.name, { on: a.on }])),
+        summary: { lights_on: lightsOn, unlocked_doors: unlockedDoors, alarm_state: HOME.security.alarm }
+      };
+    }
+
+    default:
+      return { success: false, message: `Unknown tool: ${name}` };
+  }
+}
+
+// ========================================================
+//  SYSTEM PROMPT — How Claude behaves
+// ========================================================
+function getSystemPrompt() {
+  return `You are HomeAI, a friendly and intelligent smart home assistant for "${SETTINGS.homeName}". You help the owner control and monitor their home's devices using natural language.
+
+YOUR HOME HAS:
+- 6 rooms with lights: Living Room, Bedroom, Kitchen, Bathroom, Kids Room, Garage
+- Thermostat (${SETTINGS.tempUnit === 'F' ? '55–90°F' : '13–32°C'})
+- Security system: alarm (disarm/arm_home/arm_away) + 3 doors (Front Door, Back Door, Garage Door)
+- Appliances: Smart TV, Ceiling Fan, Washing Machine
+- Scenes: morning, night, away, movie, relax, party
+
+PERSONALITY:
+- Friendly, warm, and brief — confirm actions in 1-2 sentences max
+- Be proactive about safety (mention unlocked doors at night, etc.)
+- Use emojis sparingly to feel natural
+- If the user's request involves multiple devices, handle them all at once
+
+RULES:
+- ALWAYS use tools to actually make changes — never just say "I turned on the lights" without using a tool
+- After using tools, briefly confirm what you did
+- If asked for status, use get_home_status tool first, then summarize naturally
+- Keep responses short and conversational`;
+}
+
+// ========================================================
+//  CLAUDE API
+// ========================================================
+let chatMessages = []; // Full conversation history
+let isLoading = false;
+
+async function callClaude(messages) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages,
+      tools: TOOLS,
+      system: getSystemPrompt()
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${response.status}`);
+  }
+  return response.json();
+}
+
+async function sendMessage(userText) {
+  if (isLoading || !userText.trim()) return;
+  isLoading = true;
+
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  input.value = '';
+  input.disabled = true;
+  sendBtn.disabled = true;
+
+  addChatBubble('user', userText);
+  chatMessages.push({ role: 'user', content: userText });
+
+  const typingId = showTyping();
+
+  try {
+    let response = await callClaude(chatMessages);
+
+    // Tool use loop — keep going until Claude is done
+    while (response.stop_reason === 'tool_use') {
+      const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+      const toolResults = [];
+
+      for (const block of toolUseBlocks) {
+        showToolAction(block.name, block.input);
+        const result = executeTool(block.name, block.input);
+        updateAllUI(); // Refresh UI after each tool call
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: JSON.stringify(result)
+        });
+      }
+
+      chatMessages.push({ role: 'assistant', content: response.content });
+      chatMessages.push({ role: 'user',      content: toolResults });
+      response = await callClaude(chatMessages);
+    }
+
+    // Get final text response
+    const textBlocks = response.content.filter(b => b.type === 'text');
+    const replyText = textBlocks.map(b => b.text).join('').trim();
+
+    chatMessages.push({ role: 'assistant', content: response.content });
+
+    removeTyping(typingId);
+    if (replyText) addChatBubble('ai', replyText);
+    updateAllUI();
+
+  } catch (err) {
+    removeTyping(typingId);
+    let msg = err.message || 'Something went wrong.';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      msg = '🔌 Cannot reach the server. Make sure you ran <code>npm start</code> and the server is running on port 3000.';
+    }
+    addChatBubble('error', msg);
+  }
+
+  isLoading = false;
+  input.disabled = false;
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+function sendChip(text) {
+  document.getElementById('chat-input').value = text;
+  sendMessage(text);
+  switchPanel('chat');
+}
+
+// ========================================================
+//  CHAT UI
+// ========================================================
+function addChatBubble(role, text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const avatar = role === 'ai' ? '🤖' : (role === 'user' ? '👤' : '⚠️');
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div>
+      <div class="msg-bubble">${formatMessage(text)}</div>
+      <div class="msg-time">${time}</div>
+    </div>`;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function formatMessage(text) {
+  // Simple markdown-like formatting
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.*?)`/g, '<code style="background:var(--surface3);padding:1px 5px;border-radius:4px;font-size:12px">$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+function showTyping() {
+  const container = document.getElementById('chat-messages');
+  const id = 'typing-' + Date.now();
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'msg ai';
+  div.innerHTML = `
+    <div class="msg-avatar">🤖</div>
+    <div>
+      <div class="msg-bubble">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function showToolAction(toolName, input) {
+  const container = document.getElementById('chat-messages');
+  const icons = { control_lights:'💡', control_thermostat:'🌡️', control_security:'🔒', control_appliance:'📺', set_scene:'🎬', get_home_status:'📊' };
+  const labels = { control_lights:'Adjusting lights...', control_thermostat:'Setting temperature...', control_security:'Updating security...', control_appliance:'Controlling appliance...', set_scene:'Applying scene...', get_home_status:'Checking home status...' };
+  const div = document.createElement('div');
+  div.className = 'tool-action';
+  div.innerHTML = `<span class="tool-action-icon">${icons[toolName]||'⚙️'}</span><span>${labels[toolName]||toolName}</span>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearChat() {
+  chatMessages = [];
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+  addWelcomeMessage();
+}
+
+function addWelcomeMessage() {
+  addChatBubble('ai', `Hello! I'm **HomeAI**, your smart home assistant for **${SETTINGS.homeName}** 🏠\n\nI can control your lights, thermostat, security system, and more — just tell me what you need!\n\nTry saying: *"Turn on the living room lights"* or *"Good night routine"*`);
+}
+
+// ========================================================
+//  SCENE SHORTCUTS (from dashboard)
+// ========================================================
+function applyScene(scene) {
+  sendMessage(`Set ${scene} scene`);
+  switchPanel('chat');
+}
+
+// ========================================================
+//  MANUAL CONTROLS (bypass AI for quick changes)
+// ========================================================
+function toggleLight(roomKey) {
+  HOME.rooms[roomKey].lights.on = !HOME.rooms[roomKey].lights.on;
+  updateRoomsUI();
+  updateDashboardUI();
+}
+
+function setBrightness(roomKey, val) {
+  HOME.rooms[roomKey].lights.brightness = parseInt(val);
+  updateRoomsUI();
+}
+
+function setColorTemp(roomKey, color) {
+  HOME.rooms[roomKey].lights.color = color;
+  updateRoomsUI();
+}
+
+function setAlarm(state) {
+  HOME.security.alarm = state;
+  updateSecurityUI();
+}
+
+function toggleDoor(doorKey) {
+  HOME.security.doors[doorKey].locked = !HOME.security.doors[doorKey].locked;
+  updateSecurityUI();
+}
+
+function adjustTarget(delta) {
+  HOME.thermostat.target = Math.max(55, Math.min(90, HOME.thermostat.target + delta));
+  HOME.thermostat.temperature = HOME.thermostat.target;
+  updateClimateUI();
+}
+
+function setMode(mode) {
+  HOME.thermostat.mode = mode;
+  updateClimateUI();
+}
+
+// ========================================================
+//  UI RENDERING
+// ========================================================
+function updateAllUI() {
+  updateDashboardUI();
+  updateRoomsUI();
+  updateSecurityUI();
+  updateClimateUI();
+}
+
+function updateDashboardUI() {
+  const lightsOn = Object.values(HOME.rooms).filter(r => r.lights.on).length;
+  const allRooms = Object.values(HOME.rooms).length;
+  const unlockedDoors = Object.values(HOME.security.doors).filter(d => !d.locked).length;
+  const alarmLabels = { disarmed: 'Disarmed', armed_home: 'Armed (Home)', armed_away: 'Armed (Away)' };
+
+  const stats = document.getElementById('stats-row');
+  if (!stats) return;
+  stats.innerHTML = `
+    <div class="stat-card ${lightsOn > 0 ? 'on' : ''}">
+      <div class="stat-icon">💡</div>
+      <div class="stat-val">${lightsOn}/${allRooms}</div>
+      <div class="stat-label">Lights On</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-icon">🌡️</div>
+      <div class="stat-val">${HOME.thermostat.temperature}°${SETTINGS.tempUnit}</div>
+      <div class="stat-label">Temperature</div>
+    </div>
+    <div class="stat-card ${unlockedDoors > 0 ? 'warn' : 'on'}">
+      <div class="stat-icon">${unlockedDoors > 0 ? '🔓' : '🔒'}</div>
+      <div class="stat-val">${unlockedDoors > 0 ? unlockedDoors + ' Open' : 'Secured'}</div>
+      <div class="stat-label">Doors</div>
+    </div>
+    <div class="stat-card ${HOME.security.alarm !== 'disarmed' ? 'on' : ''}">
+      <div class="stat-icon">${HOME.security.alarm === 'disarmed' ? '🟢' : '🔴'}</div>
+      <div class="stat-val" style="font-size:13px;margin-top:4px">${alarmLabels[HOME.security.alarm]||HOME.security.alarm}</div>
+      <div class="stat-label">Alarm</div>
+    </div>`;
+
+  // Greeting
+  const hour = new Date().getHours();
+  const greetTime = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const greetEl = document.getElementById('greeting-time');
+  const subEl = document.getElementById('greeting-sub');
+  if (greetEl) greetEl.textContent = greetTime;
+
+  const issues = [];
+  if (unlockedDoors > 0) issues.push(`${unlockedDoors} door(s) unlocked`);
+  if (HOME.security.alarm === 'disarmed' && lightsOn === 0) issues.push('All lights off, alarm disarmed');
+  if (subEl) subEl.textContent = issues.length ? '⚠️ ' + issues.join(' · ') : '✅ Everything looks good.';
+
+  const lightsSubEl = document.getElementById('lights-sub');
+  if (lightsSubEl) lightsSubEl.textContent = `${lightsOn} of ${allRooms} rooms lit`;
+}
+
+function updateRoomsUI() {
+  const grid = document.getElementById('rooms-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  Object.entries(HOME.rooms).forEach(([key, room]) => {
+    const light = room.lights;
+    const card = document.createElement('div');
+    card.className = `room-card ${light.on ? 'light-on' : ''}`;
+    card.innerHTML = `
+      <div class="room-header">
+        <div>
+          <div class="room-name">${room.icon} ${room.name}</div>
+          <div class="room-status">${light.on ? `On · ${light.brightness}% · ${light.color}` : 'Off'}</div>
+        </div>
+        <label class="toggle" title="Toggle light">
+          <input type="checkbox" ${light.on ? 'checked' : ''} onchange="toggleLight('${key}')"/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      ${light.on ? `
+        <div class="brightness-row">
+          <div class="brightness-label"><span>Brightness</span><span>${light.brightness}%</span></div>
+          <input type="range" class="brightness-slider" min="0" max="100" value="${light.brightness}"
+            oninput="this.previousElementSibling.lastElementChild.textContent=this.value+'%'; setBrightness('${key}',this.value)"/>
+        </div>
+        <div class="color-row">
+          ${['warm','neutral','cool','white'].map(c => `<button class="color-btn ${light.color===c?'active':''}" onclick="setColorTemp('${key}','${c}')">${c}</button>`).join('')}
+        </div>` : ''}`;
+    grid.appendChild(card);
+  });
+}
+
+function updateSecurityUI() {
+  const alarm = HOME.security.alarm;
+  const banner = document.getElementById('alarm-banner');
+  const icon = document.getElementById('alarm-icon');
+  const title = document.getElementById('alarm-title');
+  const sub = document.getElementById('alarm-sub');
+
+  if (banner) {
+    banner.className = `alarm-banner ${alarm === 'armed_home' ? 'armed-home' : alarm === 'armed_away' ? 'armed-away' : ''}`;
+  }
+  if (icon) icon.textContent = alarm === 'disarmed' ? '🟢' : alarm === 'armed_home' ? '🟡' : '🔴';
+  if (title) title.textContent = alarm === 'disarmed' ? 'DISARMED' : alarm === 'armed_home' ? 'ARMED — HOME' : 'ARMED — AWAY';
+  if (sub) sub.textContent = alarm === 'disarmed' ? 'Alarm is off. Your home is not monitored.' : alarm === 'armed_home' ? 'Alarm is on. Motion inside is ignored.' : 'Alarm is on. Any motion will trigger alert.';
+
+  const doorsGrid = document.getElementById('doors-grid');
+  if (!doorsGrid) return;
+  doorsGrid.innerHTML = '';
+  Object.entries(HOME.security.doors).forEach(([key, door]) => {
+    const locked = door.locked;
+    const div = document.createElement('div');
+    div.className = 'door-card';
+    div.innerHTML = `
+      <div class="door-info">
+        <div class="door-icon">${door.icon}</div>
+        <div class="door-name">${door.name}</div>
+        <div class="door-status ${locked ? 'locked' : 'unlocked'}">${locked ? '🔒 Locked' : '🔓 Unlocked'}</div>
+      </div>
+      <button class="lock-btn ${locked ? 'locked-state' : ''}" onclick="toggleDoor('${key}')">
+        ${locked ? 'Unlock' : 'Lock'}
+      </button>`;
+    doorsGrid.appendChild(div);
+  });
+}
+
+function updateClimateUI() {
+  const cur = document.getElementById('thermo-current');
+  const tgt = document.getElementById('thermo-target');
+  if (cur) cur.textContent = HOME.thermostat.temperature;
+  if (tgt) tgt.textContent = HOME.thermostat.target;
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === HOME.thermostat.mode);
+  });
+}
+
+// ========================================================
+//  SETTINGS
+// ========================================================
+function saveSettings() {
+  SETTINGS.homeName = document.getElementById('home-name-input').value.trim() || 'My Home';
+  SETTINGS.tempUnit = document.getElementById('temp-unit-select').value;
+  saveSettingsToStorage();
+  document.getElementById('home-name-display').textContent = SETTINGS.homeName;
+  updateAllUI();
+  showToast('✅ Settings saved!');
+}
+
+function resetHome() {
+  if (!confirm('Reset all devices to default state?')) return;
+  Object.values(HOME.rooms).forEach(r => { r.lights.on = false; r.lights.brightness = 70; r.lights.color = 'warm'; });
+  HOME.thermostat.temperature = 72; HOME.thermostat.target = 72; HOME.thermostat.mode = 'auto';
+  HOME.security.alarm = 'disarmed';
+  Object.values(HOME.security.doors).forEach(d => d.locked = true);
+  Object.values(HOME.appliances).forEach(a => a.on = false);
+  updateAllUI();
+  showToast('🔄 Home reset to defaults.');
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:80px;right:20px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:10px 16px;border-radius:var(--radius-sm);font-size:13px;z-index:999;animation:fadeIn .2s';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ========================================================
+//  NAVIGATION
+// ========================================================
+function switchPanel(panelName) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(`panel-${panelName}`);
+  if (panel) panel.classList.add('active');
+
+  document.querySelectorAll('.nav-btn, .bnav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.panel === panelName);
+  });
+
+  if (panelName === 'dashboard') updateDashboardUI();
+  if (panelName === 'rooms')     updateRoomsUI();
+  if (panelName === 'security')  updateSecurityUI();
+  if (panelName === 'climate')   updateClimateUI();
+}
+
+// ========================================================
+//  CLOCK
+// ========================================================
+function updateClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ========================================================
+//  INIT
+// ========================================================
+function init() {
+  // Apply saved settings
+  document.getElementById('home-name-input').value = SETTINGS.homeName;
+  document.getElementById('home-name-display').textContent = SETTINGS.homeName;
+  document.getElementById('temp-unit-select').value = SETTINGS.tempUnit;
+
+  // Navigation clicks
+  document.querySelectorAll('[data-panel]').forEach(btn => {
+    btn.addEventListener('click', () => switchPanel(btn.dataset.panel));
+  });
+
+  // Menu toggle (sidebar)
+  document.getElementById('menu-btn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  });
+
+  // Home name display click → go to settings
+  document.getElementById('home-name-display').addEventListener('click', () => switchPanel('settings'));
+
+  // Chat input
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.addEventListener('click', () => sendMessage(input.value));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input.value); } });
+
+  // Clock
+  updateClock();
+  setInterval(updateClock, 10000);
+
+  // Initial UI render
+  updateAllUI();
+
+  // Welcome message
+  addWelcomeMessage();
+
+  // Test server connection
+  fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }] })
+  }).then(() => {
+    document.getElementById('conn-badge').className = 'conn-badge';
+    document.getElementById('conn-text').textContent = 'Online';
+  }).catch(() => {
+    document.getElementById('conn-badge').className = 'conn-badge offline';
+    document.getElementById('conn-text').textContent = 'Offline';
+    addChatBubble('error', '🔌 Server not reachable. Please start the server with <code>npm start</code> then refresh this page.');
+  });
+}
+
+// Start the app when page loads
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
