@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.36 | deploy -->
+<!-- TaskFlow v1.37 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -172,7 +172,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .task-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;}
 
 /* line 1 — title */
-.task-title-row{display:flex;align-items:center;gap:6px;}
+.task-title-row{display:flex;align-items:center;gap:0;}
+.task-age-col{display:flex;align-items:center;justify-content:flex-end;width:58px;min-width:58px;padding:0 10px 0 4px;flex-shrink:0;}
 .task-name{
   font-size:14px;font-weight:400;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
@@ -742,7 +743,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.36</div>
+      <div class="app-version">v1.37</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -918,6 +919,8 @@ function lsLoad(){
 }
 function migrateTags(){
   state.tasks.forEach(t=>{
+    // Backfill updatedAt for tasks that predate the field
+    if(!t.updatedAt) t.updatedAt=t.createdAt||now();
     Object.entries(t.tags||{}).forEach(([cat,vals])=>{
       if(!state.definedTags[cat]) state.definedTags[cat]=[];
       (vals||[]).forEach(v=>{
@@ -1178,7 +1181,7 @@ function getStaleness(task){
 }
 
 function staleAgeLabel(task){
-  const ref = task.updatedAt || task.createdAt || 0;
+  const ref = task.updatedAt || 0;
   const days = Math.floor((Date.now() - ref) / 86400000);
   if(days < 1)  return 'today';
   if(days < 30) return days+'d';
@@ -1212,7 +1215,7 @@ function renderTaskNode(task){
   const staleClass=stale?' stale-'+stale:'';
   const staleDot=stale?`<div class="stale-dot stale-${stale}" title="No activity for ${staleAgeLabel(task)}"></div>`:'';
   const ageLabel=staleAgeLabel(task);
-  const staleChip=`<span class="stale-age${stale?' stale-'+stale:''}" title="Last touched ${ageLabel}${stale?' ago — open the task to dismiss':''}">${ageLabel}</span>`;
+  const staleChip=`<span class="stale-age${stale?' stale-'+stale:''}" title="Last updated ${ageLabel}${stale?' ago — open the task to dismiss':' ago'}">${ageLabel}</span>`;
   return`<div class="task-row" data-id="${task.id}">
     <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}${staleClass}"
       data-id="${task.id}" draggable="true"
@@ -1226,11 +1229,11 @@ function renderTaskNode(task){
         <div class="task-content">
           <div class="task-title-row">
             <span class="task-name${task.done?' done':''}">${esc(task.text)}</span>
-            ${staleChip}
           </div>
           <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
         </div>
       </div>
+      <div class="task-age-col">${staleChip}</div>
       <div class="task-right">
         <button class="task-action del" title="Move to Trash" onclick="event.stopPropagation();trashTask('${task.id}')">🗑</button>
       </div>
