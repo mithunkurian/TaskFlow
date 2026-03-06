@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.37 | deploy -->
+<!-- TaskFlow v1.38 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -739,7 +739,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.37</div>
+      <div class="app-version">v1.38</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -2605,7 +2605,7 @@ document.addEventListener('keydown', e=>{
 });
 
 // ── THEME ────────────────────────────────────────────────────────
-let isLight=localStorage.getItem('tf2_theme')==='light';
+let isLight=localStorage.getItem('tf2_theme')!=='dark';
 function applyTheme(){document.body.classList.toggle('light',isLight);}
 window.toggleTheme=function(){isLight=!isLight;localStorage.setItem('tf2_theme',isLight?'light':'dark');applyTheme();};
 
