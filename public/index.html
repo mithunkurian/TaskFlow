@@ -2312,7 +2312,14 @@ window.toggleDetail=function(){
 (function(){
   const handle=document.getElementById('detail-resize');
   const panel=document.getElementById('detail');
+  const LS_KEY='tf_detail_width';
   let dragging=false,startX=0,startW=0;
+  // Restore saved width
+  const saved=parseInt(localStorage.getItem(LS_KEY),10);
+  if(saved&&saved>=260){
+    const maxW=window.innerWidth-440;
+    panel.style.width=Math.min(saved,maxW)+'px';
+  }
   handle.addEventListener('mousedown',e=>{
     dragging=true;startX=e.clientX;startW=panel.offsetWidth;
     handle.classList.add('dragging');
@@ -2335,6 +2342,7 @@ window.toggleDetail=function(){
     panel.classList.remove('resizing');
     document.body.style.cursor='';
     document.body.style.userSelect='';
+    localStorage.setItem(LS_KEY,panel.offsetWidth);
   });
 })();
 
