@@ -376,10 +376,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 }
 .d-sub-row:hover .d-sub-drag{opacity:.45;}
 .d-sub-drag:hover{opacity:1!important;}
-.d-sub-open{font-size:9px;color:var(--dim);margin-left:4px;flex-shrink:0;}
 .d-sub-title{font-size:13px;flex:1;cursor:pointer;border-bottom:1px dashed transparent;transition:border-color .15s;}
 .d-sub-title:hover{border-bottom-color:var(--border2);}
 .d-sub-title-edit{font-size:13px;background:transparent;border:none;border-bottom:1.5px solid var(--accent);color:var(--text);outline:none;flex:1;font-family:'IBM Plex Sans',sans-serif;}
+.d-sub-actions{display:flex;align-items:center;gap:1px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+.d-sub-row:hover .d-sub-actions{opacity:1;}
+.d-sub-act{background:none;border:none;color:var(--dim);cursor:pointer;font-size:11px;padding:3px 5px;border-radius:4px;transition:all .15s;line-height:1;font-family:'IBM Plex Sans',sans-serif;}
+.d-sub-act:hover{background:var(--hover);color:var(--text);}
+.d-sub-act.del:hover{color:#d45f5f;}
+.d-sub-act.promote:hover{color:var(--accent);}
 
 /* COMMENTS */
 .comment-list{display:flex;flex-direction:column;gap:10px;}
@@ -1709,7 +1714,10 @@ function renderDetail(){
           style="flex:1;font-size:12px;${isDone?'text-decoration:line-through;color:var(--dim);':'color:var(--text);'}"
           title="Click to edit"
         >${esc(c.text)}</span>
-        <span class="d-sub-open" title="Open">→</span>
+        <div class="d-sub-actions">
+          <button class="d-sub-act promote" title="Promote to root task" onclick="event.stopPropagation();promoteToRoot('${c.id}')">↑ Root</button>
+          <button class="d-sub-act del" title="Move to trash" onclick="event.stopPropagation();trashTask('${c.id}')">🗑</button>
+        </div>
       </div>`;
     });
   }
@@ -1829,8 +1837,8 @@ function renderDetail(){
       ${!isReadOnly?`<div class="comment-inp-wrap">
         <textarea class="comment-inp" id="comment-inp-${t.id}" placeholder="Add a comment… (Ctrl+Enter to post)" rows="2"></textarea>
         <div class="comment-submit-row">
-          <button class="btn" style="font-size:10px;padding:5px 12px;" onclick="clearCommentInp('${t.id}')">Clear</button>
-          <button class="btn accent" style="font-size:10px;padding:5px 12px;" onclick="addComment('${t.id}')">Post Comment</button>
+          <button class="btn" style="font-size:10px;padding:5px 12px;" onmousedown="event.preventDefault();clearCommentInp('${t.id}')">Clear</button>
+          <button class="btn accent" style="font-size:10px;padding:5px 12px;" onmousedown="event.preventDefault();addComment('${t.id}')">Post Comment</button>
         </div>
       </div>`:''}
       <div class="comment-list">${commentsHtml||`<div style="font-size:11px;color:var(--dim);padding:6px 0;">No comments yet.</div>`}</div>
@@ -2304,7 +2312,14 @@ window.toggleDetail=function(){
 (function(){
   const handle=document.getElementById('detail-resize');
   const panel=document.getElementById('detail');
+  const LS_KEY='tf_detail_width';
   let dragging=false,startX=0,startW=0;
+  // Restore saved width
+  const saved=parseInt(localStorage.getItem(LS_KEY),10);
+  if(saved&&saved>=260){
+    const maxW=window.innerWidth-440;
+    panel.style.width=Math.min(saved,maxW)+'px';
+  }
   handle.addEventListener('mousedown',e=>{
     dragging=true;startX=e.clientX;startW=panel.offsetWidth;
     handle.classList.add('dragging');
@@ -2327,6 +2342,7 @@ window.toggleDetail=function(){
     panel.classList.remove('resizing');
     document.body.style.cursor='';
     document.body.style.userSelect='';
+    localStorage.setItem(LS_KEY,panel.offsetWidth);
   });
 })();
 
