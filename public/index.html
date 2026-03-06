@@ -227,6 +227,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .stale-age{
   font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;
   padding:1px 6px;border-radius:4px;border:1px solid;line-height:1.6;
+  color:var(--dim);border-color:var(--border2);background:transparent;
+  flex-shrink:0;
 }
 .stale-age.stale-warn{color:#c8973a;border-color:rgba(200,151,58,.35);background:rgba(200,151,58,.08);}
 .stale-age.stale-crit{color:#d45f5f;border-color:rgba(212,95,95,.35);background:rgba(212,95,95,.08);}
@@ -1178,7 +1180,7 @@ function getStaleness(task){
 function staleAgeLabel(task){
   const ref = task.updatedAt || task.createdAt || 0;
   const days = Math.floor((Date.now() - ref) / 86400000);
-  if(days < 7)  return '';
+  if(days < 1)  return 'today';
   if(days < 30) return days+'d';
   if(days < 365) return Math.floor(days/30)+'mo';
   return Math.floor(days/365)+'y';
@@ -1209,7 +1211,8 @@ function renderTaskNode(task){
   const stale=getStaleness(task);
   const staleClass=stale?' stale-'+stale:'';
   const staleDot=stale?`<div class="stale-dot stale-${stale}" title="No activity for ${staleAgeLabel(task)}"></div>`:'';
-  const staleChip=stale?`<span class="stale-age stale-${stale}" title="Last touched ${staleAgeLabel(task)} ago — open the task to dismiss">${staleAgeLabel(task)}</span>`:'';
+  const ageLabel=staleAgeLabel(task);
+  const staleChip=`<span class="stale-age${stale?' stale-'+stale:''}" title="Last touched ${ageLabel}${stale?' ago — open the task to dismiss':''}">${ageLabel}</span>`;
   return`<div class="task-row" data-id="${task.id}">
     <div class="task-item${task.done?' done-task':''}${state.activeTaskId===task.id?' active':''}${staleClass}"
       data-id="${task.id}" draggable="true"
@@ -1223,8 +1226,9 @@ function renderTaskNode(task){
         <div class="task-content">
           <div class="task-title-row">
             <span class="task-name${task.done?' done':''}">${esc(task.text)}</span>
+            ${staleChip}
           </div>
-          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}${staleChip}</div>
+          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
         </div>
       </div>
       <div class="task-right">
