@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.40 | deploy -->
+<!-- TaskFlow v1.41 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -731,6 +731,25 @@ body.kb-copy-mode .kb-card{cursor:copy;}
   font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;
 }
 
+/* STATUS FILTER */
+.status-chips{display:flex;flex-direction:column;gap:3px;margin-bottom:4px;}
+.status-chip{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;padding:5px 10px;border-radius:5px;border:1px solid var(--border2);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;transition:all .15s;color:var(--muted);background:transparent;width:100%;text-align:left;}
+.status-chip:hover{background:var(--hover);color:var(--text);border-color:var(--border2);}
+.status-chip.on{font-weight:600;}
+.status-chip[data-s="active"].on{border-color:#06D6A0;color:#06D6A0;background:rgba(6,214,160,.08);}
+.status-chip[data-s="done"].on{border-color:#8888ff;color:#8888ff;background:rgba(136,136,255,.08);}
+.status-chip[data-s="archived"].on{border-color:var(--muted);color:var(--text);background:var(--hover);}
+.status-chip[data-s="trashed"].on{border-color:#EF476F;color:#EF476F;background:rgba(239,71,111,.08);}
+.status-chip-count{font-size:10px;font-family:'IBM Plex Mono',monospace;opacity:.7;}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.status-dot.active{background:#06D6A0;}.status-dot.done{background:#8888ff;}.status-dot.archived{background:var(--muted);}.status-dot.trashed{background:#EF476F;}
+/* inline status badge in unified status-filter list */
+.task-status-pill{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:1px 6px;border-radius:99px;letter-spacing:.5px;flex-shrink:0;}
+.task-status-pill.active{background:rgba(6,214,160,.12);color:#06D6A0;}
+.task-status-pill.done{background:rgba(136,136,255,.12);color:#8888ff;}
+.task-status-pill.archived{background:var(--hover);color:var(--muted);}
+.task-status-pill.trashed{background:rgba(239,71,111,.12);color:#EF476F;}
+
 /* SEARCH BAR */
 #search-bar{display:none;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;gap:8px;}
 #search-bar.show{display:flex;}
@@ -749,7 +768,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.40 - Search added</div>
+      <div class="app-version">v1.41 - Status filter added</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -761,6 +780,9 @@ body.kb-copy-mode .kb-card{cursor:copy;}
         </button>
       </div>
       <div style="height:1px;background:var(--border);margin:12px 0 10px;"></div>
+      <div class="filter-section-title">Status <button class="filter-clear" id="status-filter-clear" onclick="clearStatusFilter()" style="display:none;">Clear</button></div>
+      <div id="status-chips" class="status-chips"></div>
+      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
       <div class="filter-section-title">Filter by Tags <button class="filter-clear" onclick="clearAllFilters()">Clear all</button></div>
       <div id="filter-cats"></div>
       <div class="mini-cal" id="mini-cal"></div>
@@ -1174,16 +1196,33 @@ function renderFilters(){
         chips+=`<span class="active-filter-chip">${esc(cat)}: ${v==='__untagged__'?'Untagged':esc(v)} <button onclick="toggleFilter('${esc(cat)}','${esc(v)}')">×</button></span>`;
     bar.innerHTML=chips;
   }else bar.classList.remove('show');
-  const active=state.tasks.filter(t=>!t.archived&&!t.trashed);
-  const archived=state.tasks.filter(t=>t.archived&&!t.trashed);
-  const trashed=state.tasks.filter(t=>t.trashed);
-  document.getElementById('stat-total').textContent=active.length;
-  document.getElementById('stat-done').textContent=archived.length;
-  document.getElementById('stat-trash').textContent=trashed.length;
+  const cntActive=state.tasks.filter(t=>!t.done&&!t.archived&&!t.trashed).length;
+  const cntDone=state.tasks.filter(t=>t.done&&!t.archived&&!t.trashed).length;
+  const cntArchived=state.tasks.filter(t=>t.archived&&!t.trashed).length;
+  const cntTrashed=state.tasks.filter(t=>t.trashed).length;
+  document.getElementById('stat-total').textContent=cntActive;
+  document.getElementById('stat-done').textContent=cntArchived;
+  document.getElementById('stat-trash').textContent=cntTrashed;
   const ba=document.getElementById('badge-active'),barch=document.getElementById('badge-archive'),btr=document.getElementById('badge-trash');
-  if(ba)ba.textContent=active.length;
-  if(barch){barch.textContent=archived.length;barch.className='archive-badge-count'+(archived.length?' has-items':'');}
-  if(btr){btr.textContent=trashed.length;btr.className='archive-badge-count'+(trashed.length?' has-items':'');}
+  if(ba)ba.textContent=cntActive;
+  if(barch){barch.textContent=cntArchived;barch.className='archive-badge-count'+(cntArchived?' has-items':'');}
+  if(btr){btr.textContent=cntTrashed;btr.className='archive-badge-count'+(cntTrashed?' has-items':'');}
+
+  // Render status chips
+  const statusDefs=[
+    {s:'active',label:'Active',count:cntActive},
+    {s:'done',label:'Done',count:cntDone},
+    {s:'archived',label:'Archived',count:cntArchived},
+    {s:'trashed',label:'Trashed',count:cntTrashed},
+  ];
+  const sc=document.getElementById('status-chips');
+  if(sc){
+    sc.innerHTML=statusDefs.map(({s,label,count})=>`
+      <button class="status-chip${statusFilter.has(s)?' on':''}" data-s="${s}" onclick="toggleStatusFilter('${s}')">
+        <span style="display:flex;align-items:center;gap:6px;"><span class="status-dot ${s}"></span>${label}</span>
+        <span class="status-chip-count">${count}</span>
+      </button>`).join('');
+  }
 }
 
 // ── STALENESS ────────────────────────────────────────────────────
@@ -1287,8 +1326,46 @@ window.selectTask=function(id){
   renderDetail();if(!state.detailOpen)toggleDetail();
 };
 
+function renderStatusBadge(s){
+  const labels={active:'ACTIVE',done:'DONE',archived:'ARCHIVED',trashed:'TRASHED'};
+  return`<span class="task-status-pill ${s}">${labels[s]||s}</span>`;
+}
+
+function renderStatusTaskItem(t){
+  const s=getTaskStatus(t);
+  const isDone=s==='done'||s==='archived';
+  const isTrashed=s==='trashed';
+  const nameStyle=isDone?'text-decoration:line-through;color:var(--dim);':isTrashed?'text-decoration:line-through;color:var(--dim);':'color:var(--text);';
+  let actions='';
+  if(s==='archived')actions=`<button class="task-action" style="opacity:1;font-size:10px;" onclick="event.stopPropagation();unarchiveTask('${t.id}')">↩ Restore</button>`;
+  if(s==='trashed')actions=`<button class="task-action" style="opacity:1;font-size:10px;color:#06D6A0;" onclick="event.stopPropagation();restoreTask('${t.id}')">↩ Restore</button>`;
+  if(s==='active'||s==='done')actions=`<button class="task-action del" title="Move to Trash" onclick="event.stopPropagation();trashTask('${t.id}')">🗑</button>`;
+  return`<div class="task-row"><div class="task-item${isDone||isTrashed?' done-task':''}${state.activeTaskId===t.id?' active':''}" data-id="${t.id}" onclick="selectTask('${t.id}')">
+    <div class="task-left">
+      <div class="chk${isDone?' on':''}" style="${isTrashed?'opacity:.35;cursor:default;':''}" onclick="event.stopPropagation();${!isTrashed?`toggleDone('${t.id}')`:''}">${isDone?'✓':''}</div>
+      <div class="task-content">
+        <div class="task-title-row"><span class="task-name" style="${nameStyle}">${esc(t.text)}</span>${renderStatusBadge(s)}</div>
+        <div class="task-tags-row">${renderTagsHtml(t)}</div>
+      </div>
+    </div>
+    <div class="task-right">${actions}</div>
+  </div></div>`;
+}
+
 function renderTasks(){
   const area=document.getElementById('task-area');
+
+  // ── STATUS FILTER overrides tab view ────────────────────────────
+  if(isStatusFilterActive()){
+    let tasks=state.tasks.filter(t=>statusFilter.has(getTaskStatus(t)));
+    if(isFilterActive())tasks=tasks.filter(t=>taskMatchesFilters(t));
+    if(isSearchActive())tasks=tasks.filter(t=>taskMatchesSearch(t));
+    tasks.sort((a,b)=>(a.order||0)-(b.order||0));
+    if(!tasks.length){area.innerHTML=`<div class="empty-state"><div class="big">◎</div><h3>No matches</h3><p>No tasks found for the selected status${isSearchActive()||isFilterActive()?' with current filters':''}</p></div>`;return;}
+    area.innerHTML=tasks.map(t=>renderStatusTaskItem(t)).join('');
+    return;
+  }
+
   if(currentView==='archive'){
     let archived=state.tasks.filter(t=>t.archived&&!t.trashed).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
     if(isSearchActive())archived=archived.filter(t=>taskMatchesSearch(t));
@@ -2628,6 +2705,28 @@ document.addEventListener('keydown', e=>{
     e.preventDefault();toggleSearch();
   }
 });
+
+// ── STATUS FILTER ────────────────────────────────────────────────
+let statusFilter=new Set();
+function getTaskStatus(t){
+  if(t.trashed)return'trashed';
+  if(t.archived)return'archived';
+  if(t.done)return'done';
+  return'active';
+}
+function isStatusFilterActive(){return statusFilter.size>0;}
+window.toggleStatusFilter=function(s){
+  if(statusFilter.has(s))statusFilter.delete(s);else statusFilter.add(s);
+  const clr=document.getElementById('status-filter-clear');
+  if(clr)clr.style.display=statusFilter.size>0?'':'none';
+  render();
+};
+window.clearStatusFilter=function(){
+  statusFilter.clear();
+  const clr=document.getElementById('status-filter-clear');
+  if(clr)clr.style.display='none';
+  render();
+};
 
 // ── SEARCH ───────────────────────────────────────────────────────
 let searchQuery='';
