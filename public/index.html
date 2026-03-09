@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.39 | deploy -->
+<!-- TaskFlow v1.40 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -730,6 +730,16 @@ body.kb-copy-mode .kb-card{cursor:copy;}
   padding:2px 7px;border-radius:5px;display:none;
   font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;
 }
+
+/* SEARCH BAR */
+#search-bar{display:none;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;gap:8px;}
+#search-bar.show{display:flex;}
+.search-inp{flex:1;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;border-radius:7px;padding:7px 12px;outline:none;transition:border-color .2s;}
+.search-inp::placeholder{color:var(--dim);}
+.search-count{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+.search-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:3px 6px;border-radius:4px;transition:color .15s;flex-shrink:0;}
+.search-close:hover{color:var(--accent2);}
+#search-toggle.search-active{color:var(--accent);border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -739,7 +749,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.39</div>
+      <div class="app-version">v1.40</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -781,7 +791,13 @@ body.kb-copy-mode .kb-card{cursor:copy;}
         <input class="add-task-inp" id="task-inp" placeholder="New task title… (Enter to add)" onkeydown="if(event.key==='Enter')addTask()"/>
         <button class="btn accent" onclick="addTask()">+ ADD</button>
       </div>
+      <button class="topbar-toggle" onclick="toggleSearch()" id="search-toggle" title="Search tasks (/)">⌕</button>
       <button class="topbar-toggle" onclick="toggleDetail()" id="detail-toggle" title="Toggle detail panel">▶</button>
+    </div>
+    <div id="search-bar">
+      <input class="search-inp" id="search-inp" placeholder="Search by title or content… (Esc to close)" oninput="setSearch(this.value)" onkeydown="if(event.key==='Escape')clearSearch()"/>
+      <span class="search-count" id="search-count"></span>
+      <button class="search-close" onclick="clearSearch()" title="Clear search">✕</button>
     </div>
     <div class="filter-active-bar" id="filter-active-bar"></div>
     <div class="view-tabs">
@@ -1274,8 +1290,9 @@ window.selectTask=function(id){
 function renderTasks(){
   const area=document.getElementById('task-area');
   if(currentView==='archive'){
-    const archived=state.tasks.filter(t=>t.archived&&!t.trashed).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
-    if(!archived.length){area.innerHTML=`<div class="empty-state"><div class="big">✓</div><h3>No archived tasks</h3><p>Completed tasks land here</p></div>`;return;}
+    let archived=state.tasks.filter(t=>t.archived&&!t.trashed).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+    if(isSearchActive())archived=archived.filter(t=>taskMatchesSearch(t));
+    if(!archived.length){area.innerHTML=`<div class="empty-state"><div class="big">✓</div><h3>${isSearchActive()?'No matches':'No archived tasks'}</h3><p>${isSearchActive()?'No archived tasks match your search':'Completed tasks land here'}</p></div>`;return;}
     area.innerHTML=archived.map(t=>`<div class="task-row"><div class="task-item done-task${state.activeTaskId===t.id?' active':''}" data-id="${t.id}" onclick="selectTask('${t.id}')">
       <div class="task-left">
         <div class="chk on" onclick="event.stopPropagation();unarchiveTask('${t.id}')">✓</div>
@@ -1292,8 +1309,9 @@ function renderTasks(){
     return;
   }
   if(currentView==='trash'){
-    const trashed=state.tasks.filter(t=>t.trashed).sort((a,b)=>(b.trashedAt||0)-(a.trashedAt||0));
-    if(!trashed.length){area.innerHTML=`<div class="empty-state"><div class="big">🗑</div><h3>Trash is empty</h3><p>Deleted tasks live here forever — never permanently lost</p></div>`;return;}
+    let trashed=state.tasks.filter(t=>t.trashed).sort((a,b)=>(b.trashedAt||0)-(a.trashedAt||0));
+    if(isSearchActive())trashed=trashed.filter(t=>taskMatchesSearch(t));
+    if(!trashed.length){area.innerHTML=`<div class="empty-state"><div class="big">🗑</div><h3>${isSearchActive()?'No matches':'Trash is empty'}</h3><p>${isSearchActive()?'No trashed tasks match your search':'Deleted tasks live here forever — never permanently lost'}</p></div>`;return;}
     area.innerHTML=trashed.map(t=>`<div class="task-row"><div class="task-item deleted-card${state.activeTaskId===t.id?' active':''}" data-id="${t.id}" onclick="selectTask('${t.id}')">
       <div class="task-left">
         <div class="chk" style="opacity:.35;cursor:default;"></div>
@@ -1314,9 +1332,13 @@ function renderTasks(){
   if(!allRoots.length){area.innerHTML=`<div class="empty-state"><div class="big">◈</div><h3>No tasks yet</h3><p>Type a task title above and press Enter</p></div>`;return;}
   const undone=allRoots.filter(t=>!t.done);
   const done=allRoots.filter(t=>t.done);
-  const filteredUndone=isFilterActive()?undone.filter(r=>shouldShowTask(r)):undone;
-  const filteredDone=isFilterActive()?done.filter(r=>shouldShowTask(r)):done;
-  if(!filteredUndone.length&&!filteredDone.length){area.innerHTML=`<div class="empty-state"><div class="big">◎</div><h3>No matches</h3><p>No tasks match the active filters</p></div>`;return;}
+  let filteredUndone=isFilterActive()?undone.filter(r=>shouldShowTask(r)):undone;
+  let filteredDone=isFilterActive()?done.filter(r=>shouldShowTask(r)):done;
+  if(isSearchActive()){
+    filteredUndone=filteredUndone.filter(r=>taskOrDescendantMatchesSearch(r));
+    filteredDone=filteredDone.filter(r=>taskOrDescendantMatchesSearch(r));
+  }
+  if(!filteredUndone.length&&!filteredDone.length){area.innerHTML=`<div class="empty-state"><div class="big">◎</div><h3>No matches</h3><p>No tasks match the active ${isSearchActive()?'search':'filters'}</p></div>`;return;}
   let html=filteredUndone.map(t=>renderTaskNode(t)).join('');
   if(filteredDone.length){
     html+=`<div class="done-section-label">COMPLETED (${filteredDone.length})</div>`;
@@ -2599,10 +2621,53 @@ window.submitNewCategory = function(){
   save(); render(); renderSettings();
 };
 
-// keyboard shortcut — Escape closes modal
+// keyboard shortcuts — Escape closes modal; / opens search
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'&&document.getElementById('settings-modal').style.display!=='none') closeSettings();
+  if(e.key==='/'&&!e.ctrlKey&&!e.metaKey&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'&&!document.activeElement.isContentEditable){
+    e.preventDefault();toggleSearch();
+  }
 });
+
+// ── SEARCH ───────────────────────────────────────────────────────
+let searchQuery='';
+function stripHtml(h){const d=document.createElement('div');d.innerHTML=h||'';return d.textContent||'';}
+function isSearchActive(){return searchQuery.trim().length>0;}
+function taskMatchesSearch(t){
+  if(!isSearchActive())return true;
+  const q=searchQuery.toLowerCase();
+  if((t.text||'').toLowerCase().includes(q))return true;
+  if(stripHtml(t.description).toLowerCase().includes(q))return true;
+  return false;
+}
+function taskOrDescendantMatchesSearch(t){
+  return taskMatchesSearch(t)||getAllDescendants(t.id).some(d=>taskMatchesSearch(d));
+}
+function updateSearchCount(){
+  const el=document.getElementById('search-count');
+  if(!el)return;
+  if(!isSearchActive()){el.textContent='';return;}
+  const area=document.getElementById('task-area');
+  const count=area?area.querySelectorAll('.task-item:not(.deleted-card)').length:0;
+  el.textContent=count+' result'+(count!==1?'s':'');
+}
+window.setSearch=function(v){searchQuery=v;render();updateSearchCount();};
+window.toggleSearch=function(){
+  const bar=document.getElementById('search-bar');
+  const btn=document.getElementById('search-toggle');
+  const inp=document.getElementById('search-inp');
+  const isOpen=bar.classList.contains('show');
+  if(isOpen){clearSearch();}
+  else{bar.classList.add('show');btn.classList.add('search-active');if(inp)setTimeout(()=>inp.focus(),50);}
+};
+window.clearSearch=function(){
+  searchQuery='';
+  const inp=document.getElementById('search-inp');if(inp)inp.value='';
+  const bar=document.getElementById('search-bar');if(bar)bar.classList.remove('show');
+  const btn=document.getElementById('search-toggle');if(btn)btn.classList.remove('search-active');
+  const el=document.getElementById('search-count');if(el)el.textContent='';
+  render();
+};
 
 // ── THEME ────────────────────────────────────────────────────────
 let isLight=localStorage.getItem('tf2_theme')!=='dark';
