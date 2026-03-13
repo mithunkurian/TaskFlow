@@ -597,6 +597,31 @@ body.light .modal{box-shadow:0 24px 80px rgba(15,17,30,.25);}
   margin:auto;
 }
 .cal-day.today-row .cal-wk-label{color:var(--accent);font-weight:700;}
+/* Calendar heatmap heat levels */
+.cal-day:not(.other-month){cursor:pointer;}
+.cal-day.heat-1{background:rgba(6,214,160,.18);color:#06D6A0;}
+.cal-day.heat-2{background:rgba(232,220,30,.22);color:#b8a800;}
+.cal-day.heat-3{background:rgba(255,160,50,.25);color:#d07800;}
+.cal-day.heat-4{background:rgba(255,90,80,.28);color:#e03030;}
+.cal-day.cal-selected{outline:2px solid var(--accent);outline-offset:-2px;font-weight:700;}
+body.light .cal-day.heat-2{color:#7a7000;}
+/* Task date badges shown on task cards */
+.task-date-badge{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:1px 5px;border-radius:3px;border:1px solid var(--border);color:var(--muted);background:var(--surface2);white-space:nowrap;flex-shrink:0;}
+.task-date-badge.tdb-assigned{color:#8888ff;border-color:rgba(136,136,255,.35);}
+.task-date-badge.tdb-due{color:#ff9944;border-color:rgba(255,153,68,.35);}
+.task-date-badge.tdb-due-today{color:var(--accent);border-color:var(--accent);}
+.task-date-badge.tdb-overdue{color:#ff6b6b;border-color:rgba(255,107,107,.4);}
+/* Date fields in detail panel */
+.d-dates-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;}
+.d-date-field{display:flex;flex-direction:column;gap:4px;}
+.d-date-label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.2px;font-family:'IBM Plex Sans',sans-serif;}
+.d-date-input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;border-radius:5px;padding:5px 8px;outline:none;width:100%;transition:border-color .15s;cursor:pointer;}
+.d-date-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(100,200,100,.12);}
+.d-date-input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.4;cursor:pointer;}
+body.light .d-date-input::-webkit-calendar-picker-indicator{filter:none;opacity:.5;}
+.d-date-clear{background:none;border:none;color:var(--dim);font-size:10px;cursor:pointer;padding:0 2px;line-height:1;transition:color .15s;align-self:flex-end;margin-left:auto;font-family:'IBM Plex Sans',sans-serif;}
+.d-date-clear:hover{color:var(--accent2);}
+.d-date-field-row{display:flex;align-items:center;gap:4px;}
 .view-mode-row{
   display:flex;gap:4px;padding:10px 12px 0;
 }
@@ -963,7 +988,7 @@ function getTagColor(cat,val){
   };
 }
 const DEFAULT_CATS=['Project','Priority','Bucket','Status'];
-let state={tasks:[],categories:[...DEFAULT_CATS],tagColors:{},tagColorCounter:0,filters:{},definedTags:{},activeTaskId:null,collapsed:{},collapsedCats:{},leftOpen:true,detailOpen:true};
+let state={tasks:[],categories:[...DEFAULT_CATS],tagColors:{},tagColorCounter:0,filters:{},definedTags:{},activeTaskId:null,collapsed:{},collapsedCats:{},leftOpen:true,detailOpen:true,calDateFilter:null};
 let currentView='active';
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
@@ -1050,7 +1075,7 @@ function addTask(text){
   const t=(text||inp?.value||'').trim();if(!t)return;
   // Shift all existing root tasks down so new task lands at top (order 0)
   state.tasks.filter(x=>!x.parentId&&!x.trashed).forEach(x=>x.order=(x.order||0)+1);
-  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),updatedAt:now(),order:0};
+  const task={id:uid(),text:t,parentId:null,done:false,archived:false,trashed:false,description:'',tags:{},comments:[],createdAt:now(),updatedAt:now(),order:0,dueDate:null,assignedDate:null};
   state.tasks.push(task);if(inp)inp.value='';
   save();render();selectTask(task.id);
 }
@@ -1171,8 +1196,15 @@ function taskMatchesFilters(task){
   }
   return true;
 }
-function isFilterActive(){return Object.keys(state.filters).length>0;}
+function isFilterActive(){return Object.keys(state.filters).length>0||!!state.calDateFilter;}
+function taskMatchesCalFilter(t){
+  if(!state.calDateFilter)return true;
+  return t.assignedDate===state.calDateFilter;
+}
 function shouldShowTask(t){
+  // Calendar date filter is strict — task must match directly (no descendant promotion)
+  if(state.calDateFilter&&!taskMatchesCalFilter(t))return false;
+  if(Object.keys(state.filters).length===0)return true;
   if(taskMatchesFilters(t))return true;
   // If an __untagged__ filter is active and this task IS tagged in that category,
   // never surface it via descendant matching — it explicitly contradicts the filter.
@@ -1235,6 +1267,8 @@ function renderFilters(){
     for(const[cat,vals]of Object.entries(state.filters))
       for(const v of vals)
         chips+=`<span class="active-filter-chip">${esc(cat)}: ${v==='__untagged__'?'Untagged':esc(v)} <button onclick="toggleFilter('${esc(cat)}','${esc(v)}')">×</button></span>`;
+    if(state.calDateFilter)
+      chips+=`<span class="active-filter-chip">📅 Assigned: ${esc(state.calDateFilter)} <button onclick="calClearFilter()">×</button></span>`;
     bar.innerHTML=chips;
   }else bar.classList.remove('show');
   const cntActive=state.tasks.filter(t=>!t.done&&!t.archived&&!t.trashed).length;
@@ -1298,6 +1332,23 @@ function renderTagsHtml(task){
   return html;
 }
 
+function renderTaskDateBadges(task){
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  let html='';
+  if(task.assignedDate){
+    const isToday=task.assignedDate===todayStr;
+    html+=`<span class="task-date-badge tdb-assigned${isToday?' tdb-due-today':''}" title="Assigned to: ${esc(task.assignedDate)}">▶ ${esc(task.assignedDate)}</span>`;
+  }
+  if(task.dueDate){
+    const isPast=task.dueDate<todayStr;
+    const isToday=task.dueDate===todayStr;
+    const cls=isToday?'tdb-due-today':isPast?'tdb-overdue':'tdb-due';
+    html+=`<span class="task-date-badge ${cls}" title="Due: ${esc(task.dueDate)}">⚑ ${esc(task.dueDate)}</span>`;
+  }
+  return html;
+}
+
 function renderTaskNode(task){
   // Subtasks are managed in the detail panel only — only root tasks render here
   const children=getChildren(task.id).filter(c=>!c.trashed);
@@ -1325,7 +1376,7 @@ function renderTaskNode(task){
           <div class="task-title-row">
             <span class="task-name${task.done?' done':''}">${esc(task.text)}</span>
           </div>
-          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}</div>
+          <div class="task-tags-row">${renderTagsHtml(task)}${hasChildren?`<span class="subtask-count">↳ ${doneChildren}/${children.length}</span>`:''}${renderTaskDateBadges(task)}</div>
         </div>
       </div>
       <div class="task-right">
@@ -1929,6 +1980,26 @@ function renderDetail(){
     </div>
 
     <div class="d-section">
+      <div class="d-section-hd">Dates</div>
+      <div class="d-dates-grid">
+        <div class="d-date-field">
+          <div class="d-date-field-row">
+            <span class="d-date-label">▶ Assigned to</span>
+            ${!isReadOnly&&t.assignedDate?`<button class="d-date-clear" title="Clear assigned date" onclick="setTaskDate('${t.id}','assignedDate',null)">✕ clear</button>`:''}
+          </div>
+          <input type="date" class="d-date-input" value="${t.assignedDate||''}" ${isReadOnly?'disabled':''} onchange="setTaskDate('${t.id}','assignedDate',this.value||null)" />
+        </div>
+        <div class="d-date-field">
+          <div class="d-date-field-row">
+            <span class="d-date-label">⚑ Due date</span>
+            ${!isReadOnly&&t.dueDate?`<button class="d-date-clear" title="Clear due date" onclick="setTaskDate('${t.id}','dueDate',null)">✕ clear</button>`:''}
+          </div>
+          <input type="date" class="d-date-input" value="${t.dueDate||''}" ${isReadOnly?'disabled':''} onchange="setTaskDate('${t.id}','dueDate',this.value||null)" />
+        </div>
+      </div>
+    </div>
+
+    <div class="d-section">
       <div class="d-section-hd">Categories &amp; Tags ${!isReadOnly?`<button onclick="showAddCat()">+ New Category</button>`:''}</div>
       <div id="d-cats">${catsHtml}</div>
       <div id="add-cat-area"></div>
@@ -1989,6 +2060,14 @@ function renderDetail(){
     if(ci)ci.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addComment(t.id);}});
   }
 }
+
+// ── DATE FIELDS ──────────────────────────────────────────────────
+window.setTaskDate=function(id,field,val){
+  // val is 'YYYY-MM-DD' string or null
+  const t=getTask(id);if(!t)return;
+  updateTask(id,{[field]:val||null});
+  renderCal(); // refresh heatmap
+};
 
 // ── TITLE EDIT ───────────────────────────────────────────────────
 window.startDetailEditTitle=function(id){
@@ -2403,13 +2482,28 @@ function renderCal(){
       <div class="cal-dow"></div>
       ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}`;
 
+  // Build assignedDate heatmap: count tasks per YYYY-MM-DD for current month
+  const heatMap={};
+  state.tasks.filter(t=>!t.trashed&&!t.archived&&t.assignedDate).forEach(t=>{
+    heatMap[t.assignedDate]=(heatMap[t.assignedDate]||0)+1;
+  });
+  function heatClass(count){if(!count)return'';if(count<=2)return' heat-1';if(count<=4)return' heat-2';if(count<=6)return' heat-3';return' heat-4';}
+
   weeks.forEach(week => {
     const wkNum = getISOWeek(week[0].date);
     const hasToday = week.some(d => `${d.date.getFullYear()}-${d.date.getMonth()}-${d.date.getDate()}` === todayStr);
     html += `<div class="cal-wk-label${hasToday?' today-row':''}">W${wkNum}</div>`;
     week.forEach(({date, cur}) => {
       const isToday = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` === todayStr;
-      html += `<div class="cal-day${!cur?' other-month':''}${isToday?' today':''}">${date.getDate()}</div>`;
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      const heat = cur ? heatClass(heatMap[dateStr]) : '';
+      const isSelected = cur && state.calDateFilter === dateStr;
+      const count = cur && heatMap[dateStr] ? heatMap[dateStr] : 0;
+      const title = count ? `${count} task${count>1?'s':''} assigned` : '';
+      html += `<div class="cal-day${!cur?' other-month':''}${isToday?' today':''}${heat}${isSelected?' cal-selected':''}"
+        ${cur?`onclick="calDayClick('${dateStr}')" title="${title}"`:''}>
+        ${date.getDate()}${count&&cur?`<div style="font-size:7px;line-height:1;opacity:.8;font-family:'IBM Plex Mono',monospace;">${count}</div>`:''}
+        </div>`;
     });
   });
 
@@ -2422,6 +2516,18 @@ window.calNav = function(dir){
   if(calMonth > 11){ calMonth = 0; calYear++; }
   if(calMonth < 0){ calMonth = 11; calYear--; }
   renderCal();
+};
+
+window.calDayClick = function(dateStr){
+  // Toggle: clicking the already-selected day clears the filter
+  state.calDateFilter = state.calDateFilter === dateStr ? null : dateStr;
+  renderCal();
+  render();
+};
+window.calClearFilter = function(){
+  state.calDateFilter = null;
+  renderCal();
+  render();
 };
 
 window.toggleLeft=function(){
