@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.43 | deploy -->
+<!-- TaskFlow v1.44 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -775,7 +775,30 @@ body.kb-copy-mode .kb-card{cursor:copy;}
 .search-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:3px 6px;border-radius:4px;transition:color .15s;flex-shrink:0;}
 .search-close:hover{color:var(--accent2);}
 #search-toggle.search-active{color:var(--accent);border-color:var(--accent);}
-</style>
+
+/* ── BOTTOM READING PANE ─────────────────────────────────────── */
+#app.pane-bottom{flex-wrap:wrap;align-content:flex-start;}
+#app.pane-bottom #left,
+#app.pane-bottom #left-resize,
+#app.pane-bottom #main,
+#app.pane-bottom #kanban-page{align-self:stretch;}
+#app.pane-bottom #detail{
+  order:99;flex:0 0 100%;
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  height:var(--tf-bottom-h,280px);min-height:120px;
+  border-left:none;border-top:1px solid var(--border2);
+  flex-direction:column;
+  transition:height .25s;
+}
+#app.pane-bottom #detail.resizing{transition:none;}
+#app.pane-bottom #detail.hidden{height:0!important;min-height:0!important;border-top:none;}
+#app.pane-bottom #detail-resize{
+  width:100%;height:5px;min-width:unset;cursor:row-resize;flex-shrink:0;
+}
+#app.pane-bottom #detail-resize::after{width:40px;height:1px;}
+#app.pane-bottom #detail-content{flex:1;min-height:0;}
+/* pane position icons used in settings */
+.pane-icon{font-size:20px;font-family:'IBM Plex Mono',monospace;font-weight:700;letter-spacing:-1px;color:var(--muted);line-height:1;}</style>
 </head>
 <body>
 <div id="app">
@@ -784,7 +807,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.43 - Resizable panels</div>
+      <div class="app-version">v1.44 - Reading pane</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -886,6 +909,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
       <div class="modal-tabs">
         <button class="modal-tab active" id="stab-categories" onclick="switchSettingsTab('categories')">CATEGORIES & TAGS</button>
         <button class="modal-tab" id="stab-appearance" onclick="switchSettingsTab('appearance')">APPEARANCE</button>
+        <button class="modal-tab" id="stab-layout" onclick="switchSettingsTab('layout')">LAYOUT</button>
       </div>
       <div class="modal-body" id="settings-body"></div>
     </div>
@@ -1332,7 +1356,7 @@ window.selectTask=function(id){
   document.querySelectorAll('.task-item').forEach(el=>el.classList.remove('active'));
   const el=document.querySelector(`.task-item[data-id="${id}"]`);
   if(el){ el.classList.add('active'); el.scrollIntoView({block:'nearest',behavior:'smooth'}); }
-  renderDetail();if(!state.detailOpen)toggleDetail();
+  renderDetail();if(autoOpenPane&&!state.detailOpen)toggleDetail();
 };
 
 function renderStatusBadge(s){
@@ -2419,6 +2443,40 @@ window.toggleDetail=function(){
   btn.title=state.detailOpen?'Hide detail panel':'Show detail panel';
 };
 
+// ── READING PANE ─────────────────────────────────────────────────
+let panePos=localStorage.getItem('tf_pane_pos')||'right';
+let bottomPaneH=parseInt(localStorage.getItem('tf_bottom_h'),10)||280;
+let autoOpenPane=localStorage.getItem('tf_auto_open_pane')!=='false';
+
+function applyPanePos(){
+  document.getElementById('app').classList.toggle('pane-bottom',panePos==='bottom');
+  document.documentElement.style.setProperty('--tf-bottom-h',bottomPaneH+'px');
+}
+window.setPanePosition=function(pos){
+  panePos=pos;
+  localStorage.setItem('tf_pane_pos',pos);
+  if(pos==='right'){
+    const saved=parseInt(localStorage.getItem('tf_detail_width'),10)||420;
+    const p=document.getElementById('detail');if(p)p.style.width=saved+'px';
+  }
+  applyPanePos();renderSettings();
+};
+window.setBottomPaneH=function(h){
+  bottomPaneH=parseInt(h,10);
+  localStorage.setItem('tf_bottom_h',bottomPaneH);
+  document.documentElement.style.setProperty('--tf-bottom-h',bottomPaneH+'px');
+};
+window.setRightPaneW=function(w){
+  const wn=parseInt(w,10);
+  localStorage.setItem('tf_detail_width',wn);
+  if(panePos==='right'){const p=document.getElementById('detail');if(p)p.style.width=wn+'px';}
+};
+window.setAutoOpenPane=function(v){
+  autoOpenPane=v;
+  localStorage.setItem('tf_auto_open_pane',v?'true':'false');
+  renderSettings();
+};
+
 // ── LEFT PANEL RESIZE ────────────────────────────────────────────
 (function(){
   const handle=document.getElementById('left-resize');
@@ -2459,39 +2517,47 @@ window.toggleDetail=function(){
 (function(){
   const handle=document.getElementById('detail-resize');
   const panel=document.getElementById('detail');
-  const LS_KEY='tf_detail_width';
-  const MIN_DETAIL=260,MAX_DETAIL=600,MIN_MAIN=320;
-  let dragging=false,startX=0,startW=0;
+  const MIN_W=260,MAX_W=600,MIN_MAIN=320,MIN_H=150,MAX_H=500;
+  let dragging=false,startX=0,startY=0,startSize=0;
+  function isBottom(){return panePos==='bottom';}
   function leftW(){const l=document.getElementById('left');return l&&!l.classList.contains('collapsed')?l.offsetWidth:0;}
-  // Restore saved width
-  const saved=parseInt(localStorage.getItem(LS_KEY),10);
-  if(saved&&saved>=MIN_DETAIL){
-    const maxW=Math.min(MAX_DETAIL,window.innerWidth-leftW()-MIN_MAIN);
-    panel.style.width=Math.min(saved,maxW)+'px';
+  // Restore right-pane width on load (bottom height restored via CSS var in applyPanePos)
+  const savedW=parseInt(localStorage.getItem('tf_detail_width'),10);
+  if(savedW&&savedW>=MIN_W&&!isBottom()){
+    const maxW=Math.min(MAX_W,window.innerWidth-leftW()-MIN_MAIN);
+    panel.style.width=Math.min(savedW,maxW)+'px';
   }
   handle.addEventListener('mousedown',e=>{
-    dragging=true;startX=e.clientX;startW=panel.offsetWidth;
-    handle.classList.add('dragging');
-    panel.classList.add('resizing');
-    document.body.style.cursor='col-resize';
-    document.body.style.userSelect='none';
-    e.preventDefault();
+    dragging=true;startX=e.clientX;startY=e.clientY;
+    startSize=isBottom()?panel.offsetHeight:panel.offsetWidth;
+    handle.classList.add('dragging');panel.classList.add('resizing');
+    document.body.style.cursor=isBottom()?'row-resize':'col-resize';
+    document.body.style.userSelect='none';e.preventDefault();
   });
   document.addEventListener('mousemove',e=>{
     if(!dragging)return;
-    const delta=startX-e.clientX; // dragging left = wider
-    const maxW=Math.min(MAX_DETAIL,window.innerWidth-leftW()-MIN_MAIN);
-    const newW=Math.min(maxW,Math.max(MIN_DETAIL,startW+delta));
-    panel.style.width=newW+'px';
+    if(isBottom()){
+      const delta=startY-e.clientY; // drag up = taller
+      const maxH=Math.min(MAX_H,window.innerHeight*0.7);
+      const newH=Math.min(maxH,Math.max(MIN_H,startSize+delta));
+      document.documentElement.style.setProperty('--tf-bottom-h',newH+'px');
+    } else {
+      const delta=startX-e.clientX; // drag left = wider
+      const maxW=Math.min(MAX_W,window.innerWidth-leftW()-MIN_MAIN);
+      panel.style.width=Math.min(maxW,Math.max(MIN_W,startSize+delta))+'px';
+    }
   });
   document.addEventListener('mouseup',()=>{
     if(!dragging)return;
     dragging=false;
-    handle.classList.remove('dragging');
-    panel.classList.remove('resizing');
-    document.body.style.cursor='';
-    document.body.style.userSelect='';
-    localStorage.setItem(LS_KEY,panel.offsetWidth);
+    handle.classList.remove('dragging');panel.classList.remove('resizing');
+    document.body.style.cursor='';document.body.style.userSelect='';
+    if(isBottom()){
+      const cur=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tf-bottom-h'))||bottomPaneH;
+      bottomPaneH=Math.round(cur);localStorage.setItem('tf_bottom_h',bottomPaneH);
+    } else {
+      localStorage.setItem('tf_detail_width',panel.offsetWidth);
+    }
   });
 })();
 
@@ -2519,6 +2585,7 @@ window.switchSettingsTab = function(tab){
 function renderSettings(){
   const body = document.getElementById('settings-body');
   if(settingsTab === 'appearance') { renderSettingsAppearance(body); return; }
+  if(settingsTab === 'layout') { renderSettingsLayout(body); return; }
   renderSettingsCategories(body);
 }
 
@@ -2627,6 +2694,80 @@ function renderSettingsAppearance(body){
           <div style="font-size:11px;color:var(--dim);margin-top:2px;">${state.tasks.length} tasks across all states</div>
         </div>
         <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent);">${state.tasks.length}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSettingsLayout(body){
+  const rightW=parseInt(localStorage.getItem('tf_detail_width'),10)||420;
+  body.innerHTML=`
+  <div class="settings-section">
+    <div class="settings-section-title">READING PANE POSITION</div>
+    <div class="theme-options-row">
+      <div class="theme-option${panePos==='right'?' selected':''}" onclick="setPanePosition('right')" style="cursor:pointer;">
+        <div class="theme-option-icon"><span class="pane-icon">▐□</span></div>
+        <div>
+          <div class="theme-option-label">Right</div>
+          <div class="theme-option-desc">Detail panel beside task list</div>
+        </div>
+      </div>
+      <div class="theme-option${panePos==='bottom'?' selected':''}" onclick="setPanePosition('bottom')" style="cursor:pointer;">
+        <div class="theme-option-icon"><span class="pane-icon">▄□</span></div>
+        <div>
+          <div class="theme-option-label">Bottom</div>
+          <div class="theme-option-desc">Detail panel below task list</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">PANE SIZE</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Right pane width</div>
+            <div style="font-size:11px;color:var(--dim);margin-top:1px;">Drag handle or set here</div>
+          </div>
+          <span style="font-size:13px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent);" id="s-right-w-lbl">${rightW}px</span>
+        </div>
+        <input type="range" min="200" max="600" value="${rightW}" step="10" style="width:100%;accent-color:var(--accent);"
+          oninput="setRightPaneW(this.value);document.getElementById('s-right-w-lbl').textContent=this.value+'px'"/>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+          <span style="font-size:10px;color:var(--dim);">200px — narrow</span>
+          <span style="font-size:10px;color:var(--dim);">600px — wide</span>
+        </div>
+      </div>
+      <div style="height:1px;background:var(--border);"></div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Bottom pane height</div>
+            <div style="font-size:11px;color:var(--dim);margin-top:1px;">Drag handle or set here</div>
+          </div>
+          <span style="font-size:13px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent);" id="s-bottom-h-lbl">${bottomPaneH}px</span>
+        </div>
+        <input type="range" min="150" max="500" value="${bottomPaneH}" step="10" style="width:100%;accent-color:var(--accent);"
+          oninput="setBottomPaneH(this.value);document.getElementById('s-bottom-h-lbl').textContent=this.value+'px'"/>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+          <span style="font-size:10px;color:var(--dim);">150px — compact</span>
+          <span style="font-size:10px;color:var(--dim);">500px — spacious</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">BEHAVIOUR</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Auto-open on task select</div>
+          <div style="font-size:11px;color:var(--dim);margin-top:2px;">Automatically open detail pane when a task is clicked</div>
+        </div>
+        <div class="toggle-pill${autoOpenPane?' on':''}" onclick="setAutoOpenPane(${!autoOpenPane})" style="cursor:pointer;flex-shrink:0;"></div>
       </div>
     </div>
   </div>`;
@@ -2846,6 +2987,7 @@ function seedIfEmpty(){
 
 // ── BOOT ─────────────────────────────────────────────────────────
 applyTheme();
+applyPanePos();
 applyLabels();
 renderCal();
 lsLoad();
