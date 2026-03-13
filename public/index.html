@@ -777,13 +777,18 @@ body.kb-copy-mode .kb-card{cursor:copy;}
 #search-toggle.search-active{color:var(--accent);border-color:var(--accent);}
 
 /* ── BOTTOM READING PANE ─────────────────────────────────────── */
-#app.pane-bottom{flex-wrap:wrap;align-content:flex-start;}
-#app.pane-bottom #left,
-#app.pane-bottom #left-resize,
-#app.pane-bottom #main,
-#app.pane-bottom #kanban-page{align-self:stretch;}
+/* Grid: left sidebar spans full height; detail panel is below main only */
+#app.pane-bottom{
+  display:grid;
+  grid-template-columns:auto auto 1fr;
+  grid-template-rows:1fr auto;
+}
+#app.pane-bottom #left      {grid-area:1/1/3/2;}  /* spans both rows */
+#app.pane-bottom #left-resize{grid-area:1/2/3/3;} /* spans both rows */
+#app.pane-bottom #main      {grid-area:1/3/2/4;overflow:hidden;}
+#app.pane-bottom #kanban-page{grid-area:1/3/2/4;}
 #app.pane-bottom #detail{
-  order:99;flex:0 0 100%;
+  grid-area:2/3/3/4;
   width:100%!important;max-width:100%!important;min-width:0!important;
   height:var(--tf-bottom-h,280px);min-height:120px;
   border-left:none;border-top:1px solid var(--border2);
