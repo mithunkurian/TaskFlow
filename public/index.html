@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.41 | deploy -->
+<!-- TaskFlow v1.42 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -100,8 +100,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 /* MAIN */
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
 #topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
-.topbar-toggle{background:var(--surface2);border:1px solid var(--border2);color:var(--muted);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
-.topbar-toggle:hover{border-color:var(--muted);color:var(--text);}
+.topbar-toggle{background:var(--surface2);border:1px solid var(--border2);color:#00897B;border-radius:6px;width:34px;height:34px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.topbar-toggle:hover{border-color:#00897B;color:#00695C;background:rgba(0,137,123,.1);}
 .add-task-wrap{flex:1;display:flex;gap:7px;align-items:center;}
 .add-task-inp{flex:1;background:var(--surface2);border:1.5px solid var(--border2);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;border-radius:7px;padding:8px 14px;outline:none;transition:all .2s;}
 .add-task-inp:focus{border-color:var(--accent);}
@@ -490,12 +490,12 @@ body.light .modal{box-shadow:0 24px 80px rgba(15,17,30,.25);}
 
 /* settings gear btn in left panel */
 .settings-btn{
-  display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;
-  background:none;border:none;color:var(--dim);font-family:'IBM Plex Sans',sans-serif;
-  font-size:11px;letter-spacing:.5px;cursor:pointer;border-radius:6px;transition:all .15s;
+  display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;
+  background:none;border:none;color:#00897B;font-family:'IBM Plex Sans',sans-serif;
+  font-size:12px;font-weight:500;letter-spacing:.3px;cursor:pointer;border-radius:6px;transition:all .15s;
 }
-.settings-btn:hover{background:var(--hover);color:var(--text);}
-.settings-btn .icon{font-size:14px;}
+.settings-btn:hover{background:rgba(0,137,123,.1);color:#00695C;}
+.settings-btn .icon{font-size:18px;line-height:1;}
 
 /* toggle pill */
 .toggle-pill{
@@ -590,9 +590,9 @@ body.light .modal{box-shadow:0 24px 80px rgba(15,17,30,.25);}
   background:none;color:var(--muted);font-family:'IBM Plex Sans',sans-serif;
   font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;
 }
-.view-mode-btn:hover{border-color:var(--border2);color:var(--text);}
-.view-mode-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,121,107,.08);}
-.view-mode-btn .icon{font-size:13px;line-height:1;}
+.view-mode-btn:hover{border-color:#00897B;color:#00897B;}
+.view-mode-btn.active{border-color:#00897B;color:#00897B;background:rgba(0,137,123,.1);}
+.view-mode-btn .icon{font-size:16px;line-height:1;}
 
 /* ── KANBAN PAGE ── */
 #kanban-page{
@@ -768,7 +768,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.41 - Status filter added</div>
+      <div class="app-version">v1.42 - UI refresh</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -788,12 +788,6 @@ body.kb-copy-mode .kb-card{cursor:copy;}
       <div class="mini-cal" id="mini-cal"></div>
     </div>
     <div class="left-bottom">
-      <div class="stats-row">
-        <div class="stat-box"><div class="stat-n" id="stat-total">0</div><div class="stat-l">ACTIVE</div></div>
-        <div class="stat-box"><div class="stat-n" id="stat-done">0</div><div class="stat-l">DONE</div></div>
-        <div class="stat-box"><div class="stat-n" id="stat-trash">0</div><div class="stat-l">TRASH</div></div>
-      </div>
-      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
       <button class="settings-btn" id="labels-toggle-btn" onclick="toggleLabels()">
         <span class="icon">🏷</span>
         <span id="labels-toggle-text">Labels On</span>
@@ -1200,9 +1194,6 @@ function renderFilters(){
   const cntDone=state.tasks.filter(t=>t.done&&!t.archived&&!t.trashed).length;
   const cntArchived=state.tasks.filter(t=>t.archived&&!t.trashed).length;
   const cntTrashed=state.tasks.filter(t=>t.trashed).length;
-  document.getElementById('stat-total').textContent=cntActive;
-  document.getElementById('stat-done').textContent=cntArchived;
-  document.getElementById('stat-trash').textContent=cntTrashed;
   const ba=document.getElementById('badge-active'),barch=document.getElementById('badge-archive'),btr=document.getElementById('badge-trash');
   if(ba)ba.textContent=cntActive;
   if(barch){barch.textContent=cntArchived;barch.className='archive-badge-count'+(cntArchived?' has-items':'');}
