@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TaskFlow v1.42 | deploy -->
+<!-- TaskFlow v1.43 | deploy -->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -59,6 +59,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 /* LEFT */
 #left{width:260px;min-width:260px;display:flex;flex-direction:column;border-right:1px solid var(--border2);background:var(--surface);transition:width .3s,min-width .3s;overflow:hidden;}
 #left.collapsed{width:0;min-width:0;}
+#left.resizing{transition:none;}
+/* drag-to-resize handle for left panel */
+#left-resize{
+  width:5px;min-width:5px;cursor:col-resize;
+  position:relative;z-index:10;flex-shrink:0;
+  background:transparent;transition:background .15s;
+}
+#left.collapsed + #left-resize{display:none;}
+#left-resize:hover,#left-resize.dragging{background:var(--accent);}
+#left-resize::after{
+  content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:1px;height:40px;background:var(--border2);border-radius:1px;
+  transition:background .15s;
+}
+#left-resize:hover::after,#left-resize.dragging::after{background:var(--accent);}
 .left-top{padding:18px 16px 12px;border-bottom:1px solid var(--border);}
 .logo{font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;}
 .logo span{color:var(--accent);}
@@ -768,7 +784,7 @@ body.kb-copy-mode .kb-card{cursor:copy;}
     <div class="left-top">
       <div class="logo">task<span>flow</span>.</div>
       <div class="tagline"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">CONNECTING...</span></div>
-      <div class="app-version">v1.42 - UI refresh</div>
+      <div class="app-version">v1.43 - Resizable panels</div>
     </div>
     <div class="filter-panel">
       <div class="view-mode-row">
@@ -798,6 +814,8 @@ body.kb-copy-mode .kb-card{cursor:copy;}
       </button>
     </div>
   </div>
+
+  <div id="left-resize" title="Drag to resize"></div>
 
   <!-- MAIN -->
   <div id="main">
@@ -2381,6 +2399,13 @@ window.toggleLeft=function(){
   state.leftOpen=!state.leftOpen;
   const left=document.getElementById('left');
   const btn=document.getElementById('left-toggle');
+  if(!state.leftOpen){
+    if(left.offsetWidth>0)left.dataset.savedWidth=left.offsetWidth;
+    left.style.width='';left.style.minWidth='';
+  } else {
+    const w=parseInt(left.dataset.savedWidth||localStorage.getItem('tf_left_width'),10);
+    if(w&&w>=200){left.style.width=w+'px';left.style.minWidth=w+'px';}
+  }
   left.classList.toggle('collapsed',!state.leftOpen);
   btn.textContent=state.leftOpen?'◀':'▶';
   btn.title=state.leftOpen?'Collapse sidebar':'Expand sidebar';
@@ -2394,16 +2419,54 @@ window.toggleDetail=function(){
   btn.title=state.detailOpen?'Hide detail panel':'Show detail panel';
 };
 
+// ── LEFT PANEL RESIZE ────────────────────────────────────────────
+(function(){
+  const handle=document.getElementById('left-resize');
+  const panel=document.getElementById('left');
+  const LS_KEY='tf_left_width';
+  const MIN_W=200,MAX_W=420,MIN_MAIN=320;
+  let dragging=false,startX=0,startW=0;
+  function detailW(){const d=document.getElementById('detail');return d&&!d.classList.contains('hidden')?d.offsetWidth:0;}
+  // Restore saved width
+  const saved=parseInt(localStorage.getItem(LS_KEY),10);
+  if(saved&&saved>=MIN_W){
+    const w=Math.min(saved,Math.min(MAX_W,window.innerWidth-detailW()-MIN_MAIN));
+    panel.style.width=w+'px';panel.style.minWidth=w+'px';
+  }
+  handle.addEventListener('mousedown',e=>{
+    if(panel.classList.contains('collapsed'))return;
+    dragging=true;startX=e.clientX;startW=panel.offsetWidth;
+    handle.classList.add('dragging');panel.classList.add('resizing');
+    document.body.style.cursor='col-resize';document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const maxW=Math.min(MAX_W,window.innerWidth-detailW()-MIN_MAIN);
+    const newW=Math.min(maxW,Math.max(MIN_W,startW+(e.clientX-startX)));
+    panel.style.width=newW+'px';panel.style.minWidth=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;
+    handle.classList.remove('dragging');panel.classList.remove('resizing');
+    document.body.style.cursor='';document.body.style.userSelect='';
+    localStorage.setItem(LS_KEY,panel.offsetWidth);
+  });
+})();
+
 // ── DETAIL PANEL RESIZE ──────────────────────────────────────────
 (function(){
   const handle=document.getElementById('detail-resize');
   const panel=document.getElementById('detail');
   const LS_KEY='tf_detail_width';
+  const MIN_DETAIL=260,MAX_DETAIL=600,MIN_MAIN=320;
   let dragging=false,startX=0,startW=0;
+  function leftW(){const l=document.getElementById('left');return l&&!l.classList.contains('collapsed')?l.offsetWidth:0;}
   // Restore saved width
   const saved=parseInt(localStorage.getItem(LS_KEY),10);
-  if(saved&&saved>=260){
-    const maxW=window.innerWidth-440;
+  if(saved&&saved>=MIN_DETAIL){
+    const maxW=Math.min(MAX_DETAIL,window.innerWidth-leftW()-MIN_MAIN);
     panel.style.width=Math.min(saved,maxW)+'px';
   }
   handle.addEventListener('mousedown',e=>{
@@ -2417,8 +2480,8 @@ window.toggleDetail=function(){
   document.addEventListener('mousemove',e=>{
     if(!dragging)return;
     const delta=startX-e.clientX; // dragging left = wider
-    const maxW=window.innerWidth-440; // leave ≥200px for main + 240px for left panel
-    const newW=Math.min(maxW,Math.max(260,startW+delta));
+    const maxW=Math.min(MAX_DETAIL,window.innerWidth-leftW()-MIN_MAIN);
+    const newW=Math.min(maxW,Math.max(MIN_DETAIL,startW+delta));
     panel.style.width=newW+'px';
   });
   document.addEventListener('mouseup',()=>{
